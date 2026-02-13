@@ -42,6 +42,13 @@ const showInventory = (inventory: Partial<Record<Good, number>>): string =>
     .map(([good, amount]) => `${good} ${Math.round((amount ?? 0) * 10) / 10}`)
     .join(' · ')
 
+const showExclusivePool = (value: unknown): string => {
+  if (value === 'harvest') return 'Harvest Court'
+  if (value === 'warden') return 'Warden Hall'
+  if (value === 'guild') return 'Guild Ledger'
+  return 'Special pool'
+}
+
 export const Hud = ({
   world,
   actionFeed,
@@ -189,6 +196,12 @@ export const Hud = ({
                   </p>
                 )}
                 {activeContract.meta.campaign === true && <p>Royal priority contract</p>}
+                {activeContract.meta.exclusive === true && (
+                  <p>
+                    Exclusive: {showExclusivePool(activeContract.meta.exclusivePool)} ·{' '}
+                    {String(activeContract.meta.exclusiveTitle ?? 'Special commission')}
+                  </p>
+                )}
                 {activeContract.kind === 'escort_caravan' && (
                   <p>
                     Escort status: {activeContract.meta.playerMetCaravan ? 'contact made' : 'find caravan'} ·{' '}
@@ -216,7 +229,8 @@ export const Hud = ({
                     <p>Tier: {contract.level}</p>
                     {contract.meta.exclusive === true && (
                       <p>
-                        Exclusive: {String(contract.meta.exclusiveTitle ?? 'Special commission')} · Min favor{' '}
+                        Exclusive: {showExclusivePool(contract.meta.exclusivePool)} ·{' '}
+                        {String(contract.meta.exclusiveTitle ?? 'Special commission')} · Min favor{' '}
                         {Number(contract.meta.minFavor ?? 0)}
                       </p>
                     )}

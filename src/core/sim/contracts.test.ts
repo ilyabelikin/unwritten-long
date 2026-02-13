@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import type { Contract } from '../types'
 import { SeededRng } from '../random'
 import { generateWorld } from '../worldgen/generateWorld'
-import { seedInitialContracts, simulateContractBoardTurn } from './contracts'
+import { kingdomExclusivePool, seedInitialContracts, simulateContractBoardTurn } from './contracts'
 import { playerAcceptContract, playerProgressContract } from './turn'
 
 describe('contracts system', () => {
@@ -403,6 +404,47 @@ describe('contracts system', () => {
     const accepted = playerAcceptContract(world, contractId)
     expect(accepted[0]).toContain('accepted')
     expect(world.contracts[contractId].status).toBe('active')
+  })
+
+  it('assigns deterministic exclusive pools across kingdoms', () => {
+    const world = generateWorld(9423)
+    const kingdomIds = Object.keys(world.kingdoms)
+    expect(kingdomIds.length).toBeGreaterThan(1)
+    const pools = kingdomIds.map((id) => kingdomExclusivePool(world, id))
+    expect(pools.every((pool) => ['harvest', 'warden', 'guild'].includes(pool))).toBe(true)
+    expect(new Set(pools).size).toBeGreaterThan(1)
+  })
+
+  it('uses kingdom pool metadata when spawning exclusive contracts', () => {
+    const base = generateWorld(9424)
+    const settlement = Object.values(base.settlements).find((candidate) => candidate.tier !== 'hamlet')
+    expect(settlement).toBeDefined()
+    if (!settlement) return
+    const kingdomId = settlement.kingdomId
+    const expectedPool = kingdomExclusivePool(base, kingdomId)
+    let exclusive: Contract | undefined
+
+    for (let seed = 1; seed <= 32 && !exclusive; seed += 1) {
+      const world = structuredClone(base)
+      world.contracts = {}
+      world.playerKingdomFavor[kingdomId] = 30
+      seedInitialContracts(world, new SeededRng(seed))
+      exclusive = Object.values(world.contracts).find(
+        (contract) => contract.settlementId === settlement.id && contract.meta.exclusive === true,
+      )
+    }
+
+    expect(exclusive).toBeDefined()
+    if (!exclusive) return
+    expect(exclusive.meta.exclusivePool).toBe(expectedPool)
+    expect(typeof exclusive.meta.exclusiveTitle).toBe('string')
+    if (expectedPool === 'harvest') {
+      expect(exclusive.kind).toBe('deliver_food')
+    } else if (expectedPool === 'warden') {
+      expect(['defend_settlement', 'hunt_bandits']).toContain(exclusive.kind)
+    } else {
+      expect(['escort_caravan', 'hunt_bandits']).toContain(exclusive.kind)
+    }
   })
 })
 

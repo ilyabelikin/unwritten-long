@@ -5,6 +5,14 @@ import type { Contract, Good, Settlement, World } from '../types'
 import { clamp } from '../utils'
 import { relationBetween, setRelation } from './diplomacy'
 
+type KingdomExclusivePool = 'harvest' | 'warden' | 'guild'
+
+const EXCLUSIVE_TITLE_BY_POOL: Record<KingdomExclusivePool, string> = {
+  harvest: 'Harvest Charter',
+  warden: 'Warden Writ',
+  guild: 'Guild Patent',
+}
+
 const activeContractForPlayer = (world: World): Contract | undefined =>
   Object.values(world.contracts).find(
     (contract) => contract.status === 'active' && contract.assignedCharacterId === world.playerId,
@@ -18,6 +26,15 @@ const favorForKingdom = (world: World, kingdomId: string): number =>
 
 const addFavorForKingdom = (world: World, kingdomId: string, amount: number): void => {
   world.playerKingdomFavor[kingdomId] = clamp(favorForKingdom(world, kingdomId) + amount, 0, 100)
+}
+
+export const kingdomExclusivePool = (world: World, kingdomId: string): KingdomExclusivePool => {
+  const ordinal = Number(kingdomId.split('-')[1] ?? 0)
+  const signal = Math.abs((world.seed % 97) + ordinal)
+  const index = signal % 3
+  if (index === 0) return 'harvest'
+  if (index === 1) return 'warden'
+  return 'guild'
 }
 
 const createFoodDeliveryContract = (
@@ -132,6 +149,58 @@ const createDefendContract = (
   },
 })
 
+const minFavorForExclusive = (favor: number): number => {
+  if (favor >= 28) return 16
+  if (favor >= 16) return 12
+  return 8
+}
+
+const createExclusiveContractForKingdom = (
+  world: World,
+  settlement: Settlement,
+  rng: SeededRng,
+  level: number,
+  favor: number,
+  hasWar: boolean,
+  underSiege: boolean,
+): Contract => {
+  const pool = kingdomExclusivePool(world, settlement.kingdomId)
+  const boostedLevel = clamp(level + (favor >= 18 ? 1 : 0), 1, 4)
+  let contract: Contract
+  if (pool === 'harvest') {
+    contract = createFoodDeliveryContract(world, settlement, rng, boostedLevel)
+    contract.good = rng.pick(['grain', 'fish', 'vegetables'] as Good[])
+    contract.rewardGoods.grain = (contract.rewardGoods.grain ?? 0) + 2
+    contract.rewardGoods.tools = (contract.rewardGoods.tools ?? 0) + 1
+  } else if (pool === 'warden') {
+    contract =
+      (hasWar || underSiege || settlement.meta.siegePressure > 16) && settlement.tier !== 'hamlet'
+        ? createDefendContract(world, settlement, rng, boostedLevel)
+        : createBanditHuntContract(world, settlement, rng, boostedLevel)
+    contract.rewardGoods.tools = (contract.rewardGoods.tools ?? 0) + 2
+  } else {
+    const nearby = findNearbySettlement(world, settlement)
+    if (nearby) {
+      contract = createEscortContract(world, settlement, rng, boostedLevel)
+      contract.meta.destinationSettlementId = nearby.id
+      contract.good = rng.pick(['tools', 'iron_ingot', 'grain'] as Good[])
+      contract.rewardGoods.iron_ingot = (contract.rewardGoods.iron_ingot ?? 0) + 1
+    } else {
+      contract = createBanditHuntContract(world, settlement, rng, boostedLevel)
+    }
+  }
+
+  contract.requiredAmount = Math.ceil(contract.requiredAmount * (pool === 'guild' ? 1.28 : 1.2))
+  contract.rewardReputation += 3 + (favor >= 22 ? 2 : 0)
+  contract.rewardBountyReduction += pool === 'warden' ? 4 : 2
+  contract.rewardGoods.gold_ore = (contract.rewardGoods.gold_ore ?? 0) + (favor >= 20 ? 2 : 1)
+  contract.meta.exclusive = true
+  contract.meta.exclusivePool = pool
+  contract.meta.minFavor = minFavorForExclusive(favor)
+  contract.meta.exclusiveTitle = EXCLUSIVE_TITLE_BY_POOL[pool]
+  return contract
+}
+
 const contractCountForSettlement = (world: World, settlementId: string): number =>
   Object.values(world.contracts).filter(
     (contract) =>
@@ -183,14 +252,7 @@ const createContractForSettlement = (
 
   const favor = favorForKingdom(world, settlement.kingdomId)
   if (!contract.meta.campaign && favor >= 8 && rng.chance(favor >= 16 ? 0.45 : 0.22)) {
-    contract.level = clamp(contract.level + 1, 1, 4)
-    contract.requiredAmount = Math.ceil(contract.requiredAmount * 1.2)
-    contract.rewardReputation += 3
-    contract.rewardBountyReduction += 2
-    contract.rewardGoods.gold_ore = (contract.rewardGoods.gold_ore ?? 0) + 1
-    contract.meta.exclusive = true
-    contract.meta.minFavor = favor >= 16 ? 12 : 8
-    contract.meta.exclusiveTitle = favor >= 16 ? 'Noble Commission' : 'Trusted Assignment'
+    contract = createExclusiveContractForKingdom(world, settlement, rng, level, favor, hasWar, underSiege)
   }
   return contract
 }

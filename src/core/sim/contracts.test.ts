@@ -336,6 +336,76 @@ describe('contracts system', () => {
     expect(foundDefense).toBe(true)
   })
 
+  it('can post peace-dividend opportunity contracts in calm periods', () => {
+    const base = generateWorld(9423)
+    const settlement = Object.values(base.settlements).find((candidate) => candidate.tier === 'city')
+    expect(settlement).toBeDefined()
+    if (!settlement) return
+    const partnerKingdomId = Object.keys(base.kingdoms).find((id) => id !== settlement.kingdomId)
+    expect(partnerKingdomId).toBeDefined()
+    if (!partnerKingdomId) return
+
+    let foundPeaceOpportunity = false
+    for (let seed = 1; seed <= 40 && !foundPeaceOpportunity; seed += 1) {
+      const world = structuredClone(base)
+      world.turn = 6
+      world.contracts = {}
+      for (const key of Object.keys(world.kingdomConflicts)) {
+        world.kingdomConflicts[key] = false
+      }
+      const target = world.settlements[settlement.id]
+      target.meta.siegePressure = 0
+      target.meta.foodStress = 10
+      const policy = world.kingdoms[target.kingdomId].policy
+      policy.peaceDividendUntilTurn = world.turn + 12
+      policy.peaceDividendIntensity = 34
+      policy.peaceDividendPartnerKingdomId = partnerKingdomId
+      simulateContractBoardTurn(world, new SeededRng(seed))
+      const peaceContract = Object.values(world.contracts).find(
+        (contract) => contract.settlementId === target.id && contract.meta.peaceDividendOpportunity === true,
+      )
+      if (peaceContract) {
+        foundPeaceOpportunity = true
+        expect(['escort_caravan', 'deliver_food']).toContain(peaceContract.kind)
+        expect(peaceContract.meta.peaceDividendPartnerKingdomId).toBe(partnerKingdomId)
+      }
+    }
+
+    expect(foundPeaceOpportunity).toBe(true)
+  })
+
+  it('still prioritizes defense over peace opportunities under active siege', () => {
+    const base = generateWorld(9424)
+    const settlement = Object.values(base.settlements).find((candidate) => candidate.tier !== 'hamlet')
+    expect(settlement).toBeDefined()
+    if (!settlement) return
+    const partnerKingdomId = Object.keys(base.kingdoms).find((id) => id !== settlement.kingdomId)
+    expect(partnerKingdomId).toBeDefined()
+    if (!partnerKingdomId) return
+
+    let foundDefense = false
+    for (let seed = 1; seed <= 28 && !foundDefense; seed += 1) {
+      const world = structuredClone(base)
+      world.turn = 6
+      world.contracts = {}
+      const target = world.settlements[settlement.id]
+      target.meta.siegePressure = 78
+      target.meta.foodStress = 14
+      const policy = world.kingdoms[target.kingdomId].policy
+      policy.peaceDividendUntilTurn = world.turn + 10
+      policy.peaceDividendIntensity = 45
+      policy.peaceDividendPartnerKingdomId = partnerKingdomId
+      simulateContractBoardTurn(world, new SeededRng(seed))
+      foundDefense = Object.values(world.contracts).some(
+        (contract) =>
+          contract.settlementId === target.id &&
+          contract.kind === 'defend_settlement' &&
+          contract.meta.peaceDividendOpportunity !== true,
+      )
+    }
+    expect(foundDefense).toBe(true)
+  })
+
   it('increases player kingdom favor after contract completion', () => {
     const world = generateWorld(9421)
     const player = world.characters[world.playerId]

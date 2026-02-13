@@ -342,6 +342,22 @@ const capitalSettlementForKingdom = (world: World, kingdomId: string): Settlemen
   return Object.values(world.settlements).find((settlement) => settlement.kingdomId === kingdomId)
 }
 
+const activePeaceDividendForSettlement = (
+  world: World,
+  settlement: Settlement,
+): { intensity: number; partnerKingdomId?: string } => {
+  const policy = world.kingdoms[settlement.kingdomId]?.policy
+  if (!policy) return { intensity: 0 }
+  if (policy.peaceDividendUntilTurn < world.turn) return { intensity: 0 }
+  const intensity = clamp(policy.peaceDividendIntensity, 0, 100)
+  const partnerKingdomId =
+    typeof policy.peaceDividendPartnerKingdomId === 'string' &&
+    policy.peaceDividendPartnerKingdomId !== 'none'
+      ? policy.peaceDividendPartnerKingdomId
+      : undefined
+  return { intensity, partnerKingdomId }
+}
+
 const createContractForSettlement = (
   world: World,
   settlement: Settlement,
@@ -357,6 +373,8 @@ const createContractForSettlement = (
     settlement.needs.grain + settlement.needs.fish > settlement.stockpile.grain + settlement.stockpile.fish
   const underSiege = settlement.meta.siegePressure > 28
   const courtFaction = courtFactionForSettlement(world, settlement)
+  const peaceDividend = activePeaceDividendForSettlement(world, settlement)
+  const peaceBoom = peaceDividend.intensity >= 14 && !underSiege && settlement.meta.foodStress < 42
   const campaignRank = Math.floor((world.campaignProgress[settlement.kingdomId] ?? 0) / 3)
   const baseLevel = settlement.tier === 'city' ? 3 : settlement.tier === 'town' ? 2 : 1
   const level = clamp(
@@ -369,7 +387,26 @@ const createContractForSettlement = (
     4,
   )
   let contract: Contract
-  if ((hasWar || underSiege) && settlement.tier !== 'hamlet' && rng.chance(underSiege ? 0.75 : 0.5)) {
+  if (peaceBoom && !hasWar && rng.chance(clamp(0.26 + peaceDividend.intensity * 0.008, 0.26, 0.68))) {
+    contract =
+      settlement.tier === 'city' || rng.chance(0.42)
+        ? createEscortContract(world, settlement, rng, level)
+        : createFoodDeliveryContract(world, settlement, rng, level)
+    contract.rewardReputation += 2
+    contract.rewardGoods.tools = (contract.rewardGoods.tools ?? 0) + 1
+    if (contract.kind === 'deliver_food') {
+      contract.good = rng.pick(['grain', 'fish', 'vegetables'] as Good[])
+      contract.rewardGoods.grain = (contract.rewardGoods.grain ?? 0) + 1
+    } else {
+      contract.good = rng.pick(['tools', 'grain', 'iron_ingot'] as Good[])
+    }
+    contract.expiresTurn += 2
+    contract.meta.peaceDividendOpportunity = true
+    contract.meta.peaceDividendIntensity = peaceDividend.intensity
+    if (peaceDividend.partnerKingdomId) {
+      contract.meta.peaceDividendPartnerKingdomId = peaceDividend.partnerKingdomId
+    }
+  } else if ((hasWar || underSiege) && settlement.tier !== 'hamlet' && rng.chance(underSiege ? 0.75 : 0.5)) {
     contract = createDefendContract(world, settlement, rng, level)
   } else if (settlement.tier === 'city' && rng.chance(0.4)) {
     contract = createEscortContract(world, settlement, rng, level)
@@ -379,7 +416,7 @@ const createContractForSettlement = (
     contract = createBanditHuntContract(world, settlement, rng, level)
   }
 
-  if (!contract.meta.campaign) {
+  if (!contract.meta.campaign && contract.meta.peaceDividendOpportunity !== true) {
     if (courtFaction === 'war_hawks' && settlement.tier !== 'hamlet' && !underSiege && rng.chance(0.22)) {
       contract = createDefendContract(world, settlement, rng, clamp(level + 1, 1, 4))
     } else if (courtFaction === 'merchant_bloc' && settlement.tier === 'city' && rng.chance(0.24)) {
@@ -390,7 +427,12 @@ const createContractForSettlement = (
   }
 
   const favor = favorForKingdom(world, settlement.kingdomId)
-  if (!contract.meta.campaign && favor >= 8 && rng.chance(favor >= 16 ? 0.45 : 0.22)) {
+  if (
+    !contract.meta.campaign &&
+    contract.meta.peaceDividendOpportunity !== true &&
+    favor >= 8 &&
+    rng.chance(favor >= 16 ? 0.45 : 0.22)
+  ) {
     contract = createExclusiveContractForKingdom(world, settlement, rng, level, favor, hasWar, underSiege)
   }
   contract = applyCourtFactionContractFlavor(world, settlement, contract)

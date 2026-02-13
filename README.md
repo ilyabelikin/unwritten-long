@@ -81,6 +81,7 @@ Then open the printed localhost URL.
 - **Peace-opposition mandates** can raise or sink summit relations depending on completion/expiry outcomes.
 - **Summit chain stages** unlock sequentially and can collapse if a critical stage expires.
 - **Peace dividend status** is shown per kingdom (partner, intensity, and expiry turn).
+- **Peace-dividend opportunities** can appear on contract boards as boom-time escort/supply commissions.
 - **Militia action**: spend tools to raise temporary local guards during dangerous periods.
 
 ## Rules implemented

@@ -274,6 +274,14 @@ export const Hud = ({
                 {activeContract.meta.diplomaticOpposition === true && (
                   <p>Peace-opposition incident: {showOppositionType(activeContract.meta.oppositionType)}</p>
                 )}
+                {activeContract.meta.peaceDividendOpportunity === true && (
+                  <p>
+                    Peace-dividend opportunity
+                    {typeof activeContract.meta.peaceDividendPartnerKingdomId === 'string'
+                      ? ` · partner ${world.kingdoms[activeContract.meta.peaceDividendPartnerKingdomId]?.name ?? activeContract.meta.peaceDividendPartnerKingdomId}`
+                      : ''}
+                  </p>
+                )}
                 {activeContract.meta.courtPatronage === true && (
                   <p>Patronage tier: {String(activeContract.meta.courtPatronTitle ?? 'Court Patronage')}</p>
                 )}
@@ -377,6 +385,17 @@ export const Hud = ({
                         {contract.meta.diplomaticSummit === true && <p>Diplomatic summit objective</p>}
                         {contract.meta.diplomaticOpposition === true && (
                           <p>Peace-opposition incident: {showOppositionType(contract.meta.oppositionType)}</p>
+                        )}
+                        {contract.meta.peaceDividendOpportunity === true && (
+                          <p>
+                            Peace-dividend opportunity
+                            {typeof contract.meta.peaceDividendPartnerKingdomId === 'string'
+                              ? ` · partner ${
+                                  world.kingdoms[contract.meta.peaceDividendPartnerKingdomId]?.name ??
+                                  contract.meta.peaceDividendPartnerKingdomId
+                                }`
+                              : ''}
+                          </p>
                         )}
                         {contract.meta.courtPatronage === true && (
                           <p>Patronage: {String(contract.meta.courtPatronTitle ?? 'Court Patronage')}</p>

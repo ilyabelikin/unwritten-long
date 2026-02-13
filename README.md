@@ -1,73 +1,60 @@
-# React + TypeScript + Vite
+# Frontier Realms (Turn-Based Living World Prototype)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A browser-based turn-based hex adventure simulation with:
 
-Currently, two official plugins are available:
+- Procedurally generated layered world (continents/islands, elevation, vegetation, resources).
+- Named settlements with kingdoms, population, buildings, stockpiles, roads, dreams, and treasury.
+- Distinct character entities (HP/AP/age/skills/history/traits/flaws).
+- Dynamic economy (needs, supply/demand pricing, caravan trade).
+- Seasonal simulation (60 turns per season) affecting production and wildlife behavior.
+- On-map combat and interactions (attack wildlife, rob caravans, guard retaliation on low reputation).
+- Wildlife, bandits, migrants, and monsters roaming the world.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Tech
 
-## React Compiler
+- TypeScript
+- React (HUD + UI)
+- SVG hex renderer (pixel-art style assets stored separately under `public/assets`)
+- Zustand (state management)
+- Vitest (simulation tests)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Run
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Then open the printed localhost URL.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Controls
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- **Click adjacent hex**: move player (AP cost based on roads/elevation/terrain).
+- **Click entity on same tile**:
+  - Wildlife / hostile actors: attack.
+  - Caravan: robbery prompt (if your reputation is still positive).
+- **AP reaches 0**: world turn auto-advances.
+- **End Turn** button: spend remaining AP and advance immediately.
+- **New World** button: regenerate with a fresh seed.
+
+## Rules implemented
+
+- Base AP = 4 per character.
+- Road movement = 1 AP.
+- Elevation climb increases AP cost.
+- Rough/deep forest/mountain movement is more expensive.
+- City guards become aggressive toward low-reputation players.
+- HP ≤ 0 resolves to death/survival rules; city visit restores HP to full.
+- Bears mostly hibernate in winter, with rare aggressive wake-ups.
+
+## Tests
+
+```bash
+npm run test
+npm run build
 ```
+
+Tests include:
+- world generation invariants,
+- economy behavior and dynamic pricing response,
+- turn progression and long-run stability checks.

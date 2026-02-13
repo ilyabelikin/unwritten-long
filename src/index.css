@@ -1,0 +1,16 @@
+body {
+  margin: 0;
+  min-width: 1024px;
+  font-family:
+    'Trebuchet MS',
+    'Segoe UI',
+    system-ui,
+    sans-serif;
+  background: #0e1318;
+  color: #e6edf4;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+}

@@ -1,0 +1,168 @@
+.hud {
+  width: 360px;
+  min-width: 320px;
+  max-height: 100vh;
+  overflow: auto;
+  background: #161d25;
+  color: #dce6f0;
+  border-left: 1px solid #2a3845;
+  padding: 0.8rem;
+  box-sizing: border-box;
+}
+
+.hud h1 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.4rem;
+}
+
+.panel {
+  background: #1d2630;
+  border: 1px solid #2f3f4d;
+  border-radius: 8px;
+  margin-bottom: 0.7rem;
+  padding: 0.65rem;
+  font-size: 0.85rem;
+}
+
+.compact span,
+.compact strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.subpanel {
+  border: 1px dashed #3a4d61;
+  border-radius: 6px;
+  padding: 0.35rem;
+  background: #1b222b;
+}
+
+.subpanel h3 {
+  margin: 0 0 0.35rem;
+}
+
+.panel h2 {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+}
+
+.panel p {
+  margin: 0.26rem 0;
+  line-height: 1.25;
+}
+
+.button-row {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.overlay-row {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.overlay-row select {
+  border: 1px solid #42576b;
+  background: #243240;
+  color: #f3f6fa;
+  border-radius: 5px;
+  padding: 0.2rem 0.35rem;
+}
+
+button {
+  border: 1px solid #445669;
+  background: #2c3c4c;
+  color: #f6f8fb;
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #384d61;
+}
+
+.warning {
+  border-color: #9f6d2b;
+  background: #3a2a18;
+}
+
+.log ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.24rem;
+}
+
+.compact-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.compact-list li {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 0.3rem;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.relation {
+  text-align: center;
+  border-radius: 999px;
+  padding: 0.05rem 0.45rem;
+  border: 1px solid transparent;
+}
+
+.relation.good {
+  background: #23412d;
+  border-color: #447a58;
+}
+
+.relation.mid {
+  background: #3a3e43;
+  border-color: #69717a;
+}
+
+.relation.bad {
+  background: #4a2525;
+  border-color: #8f4b4b;
+}
+
+.policy-grid {
+  margin-top: 0.55rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.policy-card {
+  border: 1px solid #3b4f63;
+  border-radius: 7px;
+  padding: 0.3rem 0.45rem;
+  display: grid;
+  gap: 0.12rem;
+  background: #1a2430;
+  font-size: 0.78rem;
+}
+
+.policy-card strong {
+  font-size: 0.8rem;
+}
+
+.contract-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.contract-card {
+  border: 1px dashed #50667d;
+  border-radius: 7px;
+  padding: 0.35rem 0.45rem;
+  background: #1b2430;
+}

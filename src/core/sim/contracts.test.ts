@@ -507,5 +507,57 @@ describe('contracts system', () => {
     expect(stageRep[1]).toBeGreaterThan(stageRep[0])
     expect(stageRep[2]).toBeGreaterThan(stageRep[1])
   })
+
+  it('tags generated contracts with court faction directives', () => {
+    const world = generateWorld(9427)
+    const settlement = Object.values(world.settlements).find((candidate) => candidate.tier !== 'hamlet')
+    expect(settlement).toBeDefined()
+    if (!settlement) return
+    world.contracts = {}
+    seedInitialContracts(world, new SeededRng(27))
+    const contract = Object.values(world.contracts).find((entry) => entry.settlementId === settlement.id)
+    expect(contract).toBeDefined()
+    if (!contract) return
+    expect(contract.meta.courtFaction).toBe(world.kingdoms[settlement.kingdomId].policy.courtFaction)
+    expect(typeof contract.meta.courtDirective).toBe('string')
+  })
+
+  it('war hawk courts produce stronger security rewards than merchant courts', () => {
+    const base = generateWorld(9428)
+    const settlement = Object.values(base.settlements).find((candidate) => candidate.tier !== 'hamlet')
+    expect(settlement).toBeDefined()
+    if (!settlement) return
+
+    let warHawkContract: Contract | undefined
+    let merchantContract: Contract | undefined
+    for (let seed = 1; seed <= 40; seed += 1) {
+      const warWorld = structuredClone(base)
+      const merchantWorld = structuredClone(base)
+      const kingdomId = settlement.kingdomId
+      warWorld.contracts = {}
+      merchantWorld.contracts = {}
+      warWorld.settlements[settlement.id].meta.siegePressure = 85
+      merchantWorld.settlements[settlement.id].meta.siegePressure = 85
+      warWorld.kingdoms[kingdomId].policy.courtFaction = 'war_hawks'
+      merchantWorld.kingdoms[kingdomId].policy.courtFaction = 'merchant_bloc'
+      seedInitialContracts(warWorld, new SeededRng(seed))
+      seedInitialContracts(merchantWorld, new SeededRng(seed))
+      warHawkContract = Object.values(warWorld.contracts).find((entry) => entry.settlementId === settlement.id)
+      merchantContract = Object.values(merchantWorld.contracts).find((entry) => entry.settlementId === settlement.id)
+      if (
+        warHawkContract?.kind === 'defend_settlement' &&
+        merchantContract?.kind === 'defend_settlement'
+      ) {
+        break
+      }
+    }
+
+    expect(warHawkContract).toBeDefined()
+    expect(merchantContract).toBeDefined()
+    if (!warHawkContract || !merchantContract) return
+    expect(warHawkContract.kind).toBe('defend_settlement')
+    expect(merchantContract.kind).toBe('defend_settlement')
+    expect(warHawkContract.rewardBountyReduction).toBeGreaterThan(merchantContract.rewardBountyReduction)
+  })
 })
 

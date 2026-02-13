@@ -79,7 +79,12 @@ const ensureKingdomPoliciesAndConflicts = (world: World): void => {
     kingdom.policy.nobleInfluence = Number.isFinite(kingdom.policy.nobleInfluence)
       ? kingdom.policy.nobleInfluence
       : 45
-    kingdom.policy.courtFaction = kingdom.policy.courtFaction ?? 'merchant_bloc'
+    kingdom.policy.courtFaction =
+      kingdom.policy.courtFaction === 'merchant_bloc' ||
+      kingdom.policy.courtFaction === 'war_hawks' ||
+      kingdom.policy.courtFaction === 'reformers'
+        ? kingdom.policy.courtFaction
+        : 'merchant_bloc'
     kingdom.policy.factionTension = Number.isFinite(kingdom.policy.factionTension)
       ? kingdom.policy.factionTension
       : 35

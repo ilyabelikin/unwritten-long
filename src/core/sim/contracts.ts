@@ -7,11 +7,18 @@ import { campaignRankTitleForReputation } from './campaignRank'
 import { relationBetween, setRelation } from './diplomacy'
 
 type KingdomExclusivePool = 'harvest' | 'warden' | 'guild'
+type CourtFaction = World['kingdoms'][string]['policy']['courtFaction']
 
 const EXCLUSIVE_TITLE_BY_POOL: Record<KingdomExclusivePool, string> = {
   harvest: 'Harvest Charter',
   warden: 'Warden Writ',
   guild: 'Guild Patent',
+}
+
+const COURT_DIRECTIVE_BY_FACTION: Record<CourtFaction, string> = {
+  merchant_bloc: 'Commercial Charter',
+  war_hawks: 'Security Mandate',
+  reformers: 'Civic Reform Petition',
 }
 
 const activeContractForPlayer = (world: World): Contract | undefined =>
@@ -27,6 +34,60 @@ const favorForKingdom = (world: World, kingdomId: string): number =>
 
 const addFavorForKingdom = (world: World, kingdomId: string, amount: number): void => {
   world.playerKingdomFavor[kingdomId] = clamp(favorForKingdom(world, kingdomId) + amount, 0, 100)
+}
+
+const courtFactionForSettlement = (world: World, settlement: Settlement): CourtFaction =>
+  world.kingdoms[settlement.kingdomId]?.policy.courtFaction ?? 'merchant_bloc'
+
+const applyCourtFactionContractFlavor = (
+  world: World,
+  settlement: Settlement,
+  contract: Contract,
+): Contract => {
+  const faction = courtFactionForSettlement(world, settlement)
+  contract.meta.courtFaction = faction
+  contract.meta.courtDirective = COURT_DIRECTIVE_BY_FACTION[faction]
+
+  const minRep = Number(contract.meta.minReputation ?? 0)
+  if (faction === 'merchant_bloc') {
+    if (contract.kind === 'escort_caravan' || contract.kind === 'deliver_food') {
+      contract.rewardReputation += 1
+      contract.rewardGoods.tools = (contract.rewardGoods.tools ?? 0) + 1
+      if (contract.kind === 'escort_caravan') {
+        contract.rewardGoods.iron_ingot = (contract.rewardGoods.iron_ingot ?? 0) + 1
+      }
+      if (minRep > 0) {
+        contract.meta.minReputation = clamp(minRep + 1, 0, 100)
+      }
+    } else {
+      contract.rewardGoods.gold_ore = (contract.rewardGoods.gold_ore ?? 0) + 1
+    }
+    return contract
+  }
+
+  if (faction === 'war_hawks') {
+    contract.meta.minReputation = clamp(Math.max(minRep, 0) + 2, 0, 100)
+    if (contract.kind === 'defend_settlement' || contract.kind === 'hunt_bandits') {
+      contract.rewardBountyReduction += 3
+      contract.rewardGoods.tools = (contract.rewardGoods.tools ?? 0) + 1
+    } else {
+      contract.requiredAmount = Math.ceil(contract.requiredAmount * 1.1)
+      contract.rewardGoods.gold_ore = (contract.rewardGoods.gold_ore ?? 0) + 1
+    }
+    return contract
+  }
+
+  contract.rewardReputation += 2
+  contract.rewardBountyReduction += 1
+  if (contract.kind === 'deliver_food' || contract.kind === 'defend_settlement') {
+    contract.rewardGoods.grain = (contract.rewardGoods.grain ?? 0) + 2
+  } else {
+    contract.rewardGoods.vegetables = (contract.rewardGoods.vegetables ?? 0) + 1
+  }
+  if (minRep > 0) {
+    contract.meta.minReputation = clamp(Math.max(0, minRep - 1), 0, 100)
+  }
+  return contract
 }
 
 export const kingdomExclusivePool = (world: World, kingdomId: string): KingdomExclusivePool => {
@@ -231,6 +292,7 @@ const createContractForSettlement = (
     settlement.meta.foodStress > 18 ||
     settlement.needs.grain + settlement.needs.fish > settlement.stockpile.grain + settlement.stockpile.fish
   const underSiege = settlement.meta.siegePressure > 28
+  const courtFaction = courtFactionForSettlement(world, settlement)
   const campaignRank = Math.floor((world.campaignProgress[settlement.kingdomId] ?? 0) / 3)
   const baseLevel = settlement.tier === 'city' ? 3 : settlement.tier === 'town' ? 2 : 1
   const level = clamp(
@@ -253,11 +315,21 @@ const createContractForSettlement = (
     contract = createBanditHuntContract(world, settlement, rng, level)
   }
 
+  if (!contract.meta.campaign) {
+    if (courtFaction === 'war_hawks' && settlement.tier !== 'hamlet' && !underSiege && rng.chance(0.22)) {
+      contract = createDefendContract(world, settlement, rng, clamp(level + 1, 1, 4))
+    } else if (courtFaction === 'merchant_bloc' && settlement.tier === 'city' && rng.chance(0.24)) {
+      contract = createEscortContract(world, settlement, rng, level)
+    } else if (courtFaction === 'reformers' && pressure && rng.chance(0.35)) {
+      contract = createFoodDeliveryContract(world, settlement, rng, clamp(level + 1, 1, 4))
+    }
+  }
+
   const favor = favorForKingdom(world, settlement.kingdomId)
   if (!contract.meta.campaign && favor >= 8 && rng.chance(favor >= 16 ? 0.45 : 0.22)) {
     contract = createExclusiveContractForKingdom(world, settlement, rng, level, favor, hasWar, underSiege)
   }
-  return contract
+  return applyCourtFactionContractFlavor(world, settlement, contract)
 }
 
 const hasOpenCampaignChain = (world: World, kingdomId: string): boolean =>
@@ -374,7 +446,11 @@ const spawnCampaignChain = (
 
   for (let stage = 0; stage < 3; stage += 1) {
     const settlement = stageSettlements[stage] ?? capital
-    const contract = createContractByKind(world, settlement, kinds[stage], baseLevel, rng)
+    const contract = applyCourtFactionContractFlavor(
+      world,
+      settlement,
+      createContractByKind(world, settlement, kinds[stage], baseLevel, rng),
+    )
     contract.meta.campaign = true
     contract.meta.campaignChainId = chainId
     contract.meta.campaignStage = stage + 1

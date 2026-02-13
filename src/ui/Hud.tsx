@@ -51,6 +51,13 @@ const showExclusivePool = (value: unknown): string => {
   return 'Special pool'
 }
 
+const showContractFaction = (value: unknown): string => {
+  if (value === 'merchant_bloc' || value === 'war_hawks' || value === 'reformers') {
+    return courtFactionLabel(value)
+  }
+  return 'Unaligned'
+}
+
 export const Hud = ({
   world,
   actionFeed,
@@ -206,6 +213,12 @@ export const Hud = ({
                   </p>
                 )}
                 {activeContract.meta.campaign === true && <p>Royal priority contract</p>}
+                {typeof activeContract.meta.courtDirective === 'string' && (
+                  <p>
+                    Court directive: {String(activeContract.meta.courtDirective)} ·{' '}
+                    {showContractFaction(activeContract.meta.courtFaction)}
+                  </p>
+                )}
                 {activeContract.meta.exclusive === true && (
                   <p>
                     Exclusive: {showExclusivePool(activeContract.meta.exclusivePool)} ·{' '}
@@ -246,6 +259,12 @@ export const Hud = ({
                             Exclusive: {showExclusivePool(contract.meta.exclusivePool)} ·{' '}
                             {String(contract.meta.exclusiveTitle ?? 'Special commission')} · Min favor{' '}
                             {Number(contract.meta.minFavor ?? 0)}
+                          </p>
+                        )}
+                        {typeof contract.meta.courtDirective === 'string' && (
+                          <p>
+                            Directive: {String(contract.meta.courtDirective)} ·{' '}
+                            {showContractFaction(contract.meta.courtFaction)}
                           </p>
                         )}
                         {minReputation > 0 && (

@@ -130,6 +130,32 @@ const nearestThreatForGuard = (world: World, guard: Character, guardKingdomId?: 
   return threats[0]?.candidate
 }
 
+const guardPatrolTilesFor = (world: World, guard: Character): Set<string> => {
+  const zone = new Set<string>()
+  const guardCityId = guard.meta.guardCityId as string | undefined
+  if (guardCityId) {
+    for (const tileId of cityGuardSpawnTiles(world)) {
+      zone.add(tileId)
+    }
+    return zone
+  }
+
+  const homeSettlementId = guard.homeSettlementId
+  const settlement = homeSettlementId ? world.settlements[homeSettlementId] : undefined
+  if (!settlement) return zone
+  for (const tileId of settlement.tiles) {
+    zone.add(tileId)
+    const tile = world.tiles[tileId]
+    for (const neighbor of neighborsOf(tile.coord)) {
+      const neighborId = keyFor(neighbor.q, neighbor.r)
+      if (world.tiles[neighborId] && world.tiles[neighborId].terrain !== 'sea') {
+        zone.add(neighborId)
+      }
+    }
+  }
+  return zone
+}
+
 const stepToward = (world: World, actor: Character, targetTile: string): string | undefined => {
   const options = neighborsLand(world, actor.location)
   if (options.length === 0) return undefined
@@ -213,7 +239,7 @@ const processNpcIntent = (world: World, actor: Character, rng: SeededRng, messag
   }
 
   if (actor.role === 'guard') {
-    const guardTiles = new Set(cityGuardSpawnTiles(world))
+    const guardTiles = guardPatrolTilesFor(world, actor)
     const guardCityId = actor.meta.guardCityId as string | undefined
     const guardKingdomId = guardCityId ? world.settlements[guardCityId]?.kingdomId : actor.homeSettlementId
       ? world.settlements[actor.homeSettlementId]?.kingdomId
@@ -424,6 +450,16 @@ export const advanceWorldTurn = (world: World, seedOffset = 0): string[] => {
 
   messages.push(...spawnWorldEvents(world, rng))
   messages.push(...simulateWildlifeEcology(world, rng))
+
+  for (const actor of Object.values(world.characters)) {
+    if (!actor.alive || actor.role !== 'guard' || !actor.meta.militia) continue
+    const expiresTurn = Number(actor.meta.expiresTurn ?? world.turn + 1)
+    if (world.turn >= expiresTurn) {
+      actor.alive = false
+      messages.push(`${actor.name} disbanded after service duty ended.`)
+    }
+  }
+
   healInCities(world)
   const player = world.characters[world.playerId]
   if (player?.alive) {
@@ -600,6 +636,48 @@ export const playerRequestPardon = (world: World): string[] => {
   const messages = [
     `${settlement.name} authorities granted a pardon. Your bounty has been cleared.`,
   ]
+  world.messages = [...messages, ...world.messages].slice(0, 120)
+  return messages
+}
+
+export const playerRallyMilitia = (world: World): string[] => {
+  const player = world.characters[world.playerId]
+  const settlement = currentSettlementForPlayer(world)
+  if (!player || !settlement) return ['You must be in a settlement to rally militia.']
+  if (player.ap < 2) return ['Not enough AP to rally local militia.']
+
+  const tools = Math.floor(player.inventory.tools ?? 0)
+  if (tools < 1) return ['Rallying militia requires at least 1 tool to arm recruits.']
+  player.inventory.tools = tools - 1
+  player.ap -= 2
+
+  const id = `militia-${world.turn}-${Object.keys(world.characters).length + 1}`
+  world.characters[id] = {
+    id,
+    name: `${settlement.name} Militia`,
+    role: 'guard',
+    species: 'human',
+    hp: 9,
+    maxHp: 9,
+    ap: 4,
+    maxAp: 4,
+    age: 27,
+    skills: { combat: 4, patrol: 4 },
+    history: [`Raised by the player during turn ${world.turn}.`],
+    traits: ['vigilant'],
+    flaws: ['inexperienced'],
+    reputation: 0,
+    location: settlement.tiles[0],
+    homeSettlementId: settlement.id,
+    alive: true,
+    inventory: {},
+    meta: { militia: true, expiresTurn: world.turn + 24 },
+  }
+
+  const messages = [`You rallied militia in ${settlement.name}. Local security improves.`]
+  settlement.meta.prosperity = clamp(settlement.meta.prosperity + 2.5, 0, 100)
+  settlement.meta.foodStress = clamp(settlement.meta.foodStress - 2, 0, 100)
+  player.reputation += 2
   world.messages = [...messages, ...world.messages].slice(0, 120)
   return messages
 }

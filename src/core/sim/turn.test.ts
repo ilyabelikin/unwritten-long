@@ -6,6 +6,7 @@ import {
   movementCost,
   playerDonateSupplies,
   playerRequestPardon,
+  playerRallyMilitia,
   playerRob,
   playerSponsorTreaty,
 } from './turn'
@@ -281,6 +282,29 @@ describe('turn simulation', () => {
       Math.abs(parseKey(moved).q - parseKey(rightSettlement.tiles[0]).q) +
       Math.abs(parseKey(moved).r - parseKey(rightSettlement.tiles[0]).r)
     expect(after).toBeLessThanOrEqual(before)
+  })
+
+  it('rallied militia appears and later disbands', () => {
+    const world = generateWorld(9097)
+    const player = world.characters[world.playerId]
+    player.inventory.tools = 2
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+
+    const messages = playerRallyMilitia(world)
+    expect(messages[0]).toContain('rallied militia')
+    const militia = Object.values(world.characters).find(
+      (character) => character.role === 'guard' && Boolean(character.meta.militia),
+    )
+    expect(militia).toBeDefined()
+    if (!militia) return
+
+    const expires = Number(militia.meta.expiresTurn)
+    while (world.turn <= expires) {
+      advanceWorldTurn(world, world.turn)
+    }
+    expect(militia.alive).toBe(false)
   })
 })
 

@@ -7,6 +7,7 @@ import {
   playerAttackOnTile,
   playerDonateSupplies,
   playerAcceptContract,
+  playerRallyMilitia,
   playerRequestPardon,
   playerProgressContract,
   playerRob,
@@ -31,6 +32,7 @@ interface GameState {
   donateSupplies: () => void
   sponsorTreaty: () => void
   requestPardon: () => void
+  rallyMilitia: () => void
   acceptContract: (contractId: string) => void
   progressContract: () => void
   saveGame: () => void
@@ -153,6 +155,13 @@ export const useGameStore = create<GameState>((set, get) => ({
   requestPardon: () => {
     const world = structuredClone(get().world)
     const messages = playerRequestPardon(world)
+    resolvePostActionTurn(world, messages)
+    set({ ...commitWorld(world), actionFeed: messages.length > 0 ? messages : get().actionFeed })
+  },
+
+  rallyMilitia: () => {
+    const world = structuredClone(get().world)
+    const messages = playerRallyMilitia(world)
     resolvePostActionTurn(world, messages)
     set({ ...commitWorld(world), actionFeed: messages.length > 0 ? messages : get().actionFeed })
   },

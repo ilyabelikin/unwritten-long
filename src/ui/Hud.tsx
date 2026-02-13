@@ -17,6 +17,7 @@ interface HudProps {
   onDonateSupplies: () => void
   onSponsorTreaty: () => void
   onRequestPardon: () => void
+  onRallyMilitia: () => void
   onAcceptContract: (contractId: string) => void
   onProgressContract: () => void
   onSaveGame: () => void
@@ -43,6 +44,7 @@ export const Hud = ({
   onDonateSupplies,
   onSponsorTreaty,
   onRequestPardon,
+  onRallyMilitia,
   onAcceptContract,
   onProgressContract,
   onSaveGame,
@@ -121,6 +123,7 @@ export const Hud = ({
               <button onClick={onDonateSupplies}>Donate Supplies (1 AP)</button>
               <button onClick={onSponsorTreaty}>Sponsor Treaty (2 AP)</button>
               <button onClick={onRequestPardon}>Request Pardon (1 AP)</button>
+              <button onClick={onRallyMilitia}>Rally Militia (2 AP)</button>
             </div>
           </>
         ) : (

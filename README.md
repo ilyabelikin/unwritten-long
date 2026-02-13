@@ -11,6 +11,7 @@ A browser-based turn-based hex adventure simulation with:
 - Wildlife, bandits, migrants, and monsters roaming the world.
 - Local save/load support with world-state persistence.
 - Kingdom diplomacy with dynamic relations, conflicts, policy shifts, and tariff-aware trade risk.
+- Diplomatic incident chain (trade charters, border crises, armistice pressure) affecting treasury and tensions.
 
 ## Tech
 
@@ -54,6 +55,7 @@ Then open the printed localhost URL.
 - Seasonal crop cycle and food stress drive migration/growth/decline pressure in settlements.
 - Wildlife ecology includes predator-prey interactions and seasonal births/attrition.
 - Kingdom conflicts can trigger frontier clashes; policies (tax/patrol/trade stance) evolve over time.
+- War borders influence danger overlays and can spawn armed warbands.
 
 ## Tests
 

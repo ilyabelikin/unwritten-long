@@ -173,6 +173,45 @@ const bilateralPeaceCorridorIntensityForKingdom = (world: World, kingdomId: stri
   return stabilizedCorridorIntensity(world, kingdomId, partnerId)
 }
 
+const destabilizeCorridorsUnderConflict = (world: World, messages: string[]): void => {
+  const pairKeys = Object.keys(world.kingdomRelations)
+  for (const pair of pairKeys) {
+    const [left, right] = pair.split('|')
+    const leftPolicy = world.kingdoms[left]?.policy
+    const rightPolicy = world.kingdoms[right]?.policy
+    if (!leftPolicy || !rightPolicy) continue
+    if (leftPolicy.peaceDividendPartnerKingdomId !== right || rightPolicy.peaceDividendPartnerKingdomId !== left) continue
+    if (leftPolicy.peaceDividendUntilTurn < world.turn || rightPolicy.peaceDividendUntilTurn < world.turn) continue
+
+    const relation = relationBetween(world, left, right)
+    const atWar = isAtWar(world, left, right)
+    if (!atWar && relation >= -4) continue
+
+    const decay = atWar ? 8 : 4
+    leftPolicy.peaceDividendIntensity = clamp(leftPolicy.peaceDividendIntensity - decay, 0, 100)
+    rightPolicy.peaceDividendIntensity = clamp(rightPolicy.peaceDividendIntensity - decay, 0, 100)
+    leftPolicy.peaceDividendUntilTurn = Math.min(leftPolicy.peaceDividendUntilTurn, world.turn + (atWar ? 2 : 4))
+    rightPolicy.peaceDividendUntilTurn = Math.min(rightPolicy.peaceDividendUntilTurn, world.turn + (atWar ? 2 : 4))
+
+    if (leftPolicy.peaceDividendIntensity <= 0 || rightPolicy.peaceDividendIntensity <= 0) {
+      leftPolicy.peaceDividendIntensity = 0
+      rightPolicy.peaceDividendIntensity = 0
+      leftPolicy.peaceDividendUntilTurn = -1
+      rightPolicy.peaceDividendUntilTurn = -1
+      leftPolicy.peaceDividendPartnerKingdomId = 'none'
+      rightPolicy.peaceDividendPartnerKingdomId = 'none'
+      messages.push(
+        `${world.kingdoms[left].name} and ${world.kingdoms[right].name} lost their peace corridor after renewed hostilities.`,
+      )
+      continue
+    }
+
+    messages.push(
+      `${world.kingdoms[left].name}/${world.kingdoms[right].name} peace corridor is fraying under rising tensions.`,
+    )
+  }
+}
+
 const applyPeaceDividendEffects = (world: World, messages: string[]): void => {
   const pairKeys = Object.keys(world.kingdomRelations)
   for (const pair of pairKeys) {
@@ -300,6 +339,7 @@ const applyDiplomaticIncident = (world: World, rng: SeededRng, messages: string[
 export const simulateDiplomacyTurn = (world: World, rng: SeededRng): string[] => {
   const messages: string[] = []
   if (world.turn % 12 !== 0) return messages
+  destabilizeCorridorsUnderConflict(world, messages)
   const kingdomIds = Object.keys(world.kingdoms)
   for (let i = 0; i < kingdomIds.length; i += 1) {
     for (let j = i + 1; j < kingdomIds.length; j += 1) {

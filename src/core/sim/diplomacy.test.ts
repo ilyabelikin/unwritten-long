@@ -279,5 +279,45 @@ describe('diplomacy simulation', () => {
     expect(siegeAfter).toBeLessThan(siegeBefore)
     expect(stressAfter).toBeLessThan(stressBefore)
   })
+
+  it('war resumption degrades active peace-corridor intensity', () => {
+    const world = generateWorld(9912)
+    const [left, right] = Object.keys(world.kingdoms)
+    world.turn = 12
+    setRelation(world, left, right, -20)
+    setWarState(world, left, right, true)
+    world.kingdoms[left].policy.peaceDividendPartnerKingdomId = right
+    world.kingdoms[right].policy.peaceDividendPartnerKingdomId = left
+    world.kingdoms[left].policy.peaceDividendUntilTurn = world.turn + 14
+    world.kingdoms[right].policy.peaceDividendUntilTurn = world.turn + 14
+    world.kingdoms[left].policy.peaceDividendIntensity = 24
+    world.kingdoms[right].policy.peaceDividendIntensity = 24
+
+    const messages = simulateDiplomacyTurn(world, new SeededRng(71))
+    expect(world.kingdoms[left].policy.peaceDividendIntensity).toBeLessThan(24)
+    expect(world.kingdoms[right].policy.peaceDividendIntensity).toBeLessThan(24)
+    expect(messages.some((line) => line.includes('fraying'))).toBe(true)
+  })
+
+  it('severe renewed conflict can collapse a fragile corridor entirely', () => {
+    const world = generateWorld(9913)
+    const [left, right] = Object.keys(world.kingdoms)
+    world.turn = 12
+    setRelation(world, left, right, -35)
+    setWarState(world, left, right, true)
+    world.kingdoms[left].policy.peaceDividendPartnerKingdomId = right
+    world.kingdoms[right].policy.peaceDividendPartnerKingdomId = left
+    world.kingdoms[left].policy.peaceDividendUntilTurn = world.turn + 10
+    world.kingdoms[right].policy.peaceDividendUntilTurn = world.turn + 10
+    world.kingdoms[left].policy.peaceDividendIntensity = 6
+    world.kingdoms[right].policy.peaceDividendIntensity = 6
+
+    const messages = simulateDiplomacyTurn(world, new SeededRng(72))
+    expect(world.kingdoms[left].policy.peaceDividendIntensity).toBe(0)
+    expect(world.kingdoms[right].policy.peaceDividendIntensity).toBe(0)
+    expect(world.kingdoms[left].policy.peaceDividendPartnerKingdomId).toBe('none')
+    expect(world.kingdoms[right].policy.peaceDividendPartnerKingdomId).toBe('none')
+    expect(messages.some((line) => line.includes('lost their peace corridor'))).toBe(true)
+  })
 })
 

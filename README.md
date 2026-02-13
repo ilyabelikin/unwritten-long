@@ -90,6 +90,7 @@ Then open the printed localhost URL.
 - Active corridors also reduce cross-border caravan tariffs and route risk, improving sustained inter-kingdom trade.
 - Sustained corridors gradually nudge kingdom enforcement policy toward less protectionist, less punitive settings.
 - Corridor trade/peace bonuses pause automatically if the paired kingdoms return to open war.
+- If conflict reignites, corridor intensity now degrades and fragile corridors can fully collapse.
 - **Militia action**: spend tools to raise temporary local guards during dangerous periods.
 
 ## Rules implemented

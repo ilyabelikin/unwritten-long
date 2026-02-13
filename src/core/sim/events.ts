@@ -2,7 +2,7 @@ import { keyFor, neighborsOf } from '../hex'
 import { SeededRng } from '../random'
 import { clamp } from '../utils'
 import { isAtWar, kingdomPairKey, relationBetween, setRelation } from './diplomacy'
-import type { Character, Species, World } from '../types'
+import type { Character, Contract, Settlement, Species, World } from '../types'
 
 const wildlifeForTile = (rng: SeededRng): Species => {
   const roll = rng.next()
@@ -270,6 +270,13 @@ const isEdictExpired = (world: World, kingdomId: string): boolean => {
 }
 
 type CourtFaction = World['kingdoms'][string]['policy']['courtFaction']
+const allCourtFactions: CourtFaction[] = ['merchant_bloc', 'war_hawks', 'reformers']
+
+const factionLabel = (faction: CourtFaction): string => {
+  if (faction === 'merchant_bloc') return 'Merchant Bloc'
+  if (faction === 'war_hawks') return 'War Hawks'
+  return 'Reformers'
+}
 
 const factionScores = (
   world: World,
@@ -325,6 +332,116 @@ const setCourtEdict = (
   const policy = world.kingdoms[kingdomId].policy
   policy.activeEdict = edict
   policy.edictExpiresTurn = world.turn + duration
+}
+
+const capitalSettlementForKingdom = (world: World, kingdomId: string): Settlement | undefined => {
+  const kingdom = world.kingdoms[kingdomId]
+  const capitalId = kingdom?.capitalSettlementId
+  if (capitalId && world.settlements[capitalId]) return world.settlements[capitalId]
+  return Object.values(world.settlements)
+    .filter((settlement) => settlement.kingdomId === kingdomId)
+    .sort((a, b) => b.populationIds.length - a.populationIds.length)[0]
+}
+
+const openContractCountForSettlement = (world: World, settlementId: string): number =>
+  Object.values(world.contracts).filter(
+    (contract) =>
+      contract.settlementId === settlementId &&
+      (contract.status === 'available' || contract.status === 'active'),
+  ).length
+
+const hasOpenRivalryContractForKingdom = (world: World, kingdomId: string): boolean =>
+  Object.values(world.contracts).some(
+    (contract) =>
+      contract.issuerKingdomId === kingdomId &&
+      contract.status !== 'completed' &&
+      contract.status !== 'expired' &&
+      contract.meta.rivalryIncident === true,
+  )
+
+const newRivalryContractId = (world: World, rng: SeededRng): string =>
+  `contract-rivalry-${world.turn}-${rng.int(100, 999)}-${Object.keys(world.contracts).length + 1}`
+
+const createFactionRivalryContract = (
+  world: World,
+  kingdomId: string,
+  faction: CourtFaction,
+  rivalFaction: CourtFaction,
+  rng: SeededRng,
+): Contract | undefined => {
+  const issuer = capitalSettlementForKingdom(world, kingdomId)
+  if (!issuer || openContractCountForSettlement(world, issuer.id) >= 4) return undefined
+  const level = clamp(
+    2 + Math.floor((world.campaignProgress[kingdomId] ?? 0) / 4) + (world.kingdoms[kingdomId].policy.factionTension >= 70 ? 1 : 0),
+    1,
+    4,
+  )
+
+  let kind: Contract['kind']
+  if (faction === 'war_hawks') kind = rng.chance(0.6) ? 'defend_settlement' : 'hunt_bandits'
+  else if (faction === 'merchant_bloc') kind = issuer.tier === 'city' && rng.chance(0.55) ? 'escort_caravan' : 'deliver_food'
+  else kind = rng.chance(0.65) ? 'deliver_food' : 'defend_settlement'
+
+  const contract: Contract = {
+    id: newRivalryContractId(world, rng),
+    settlementId: issuer.id,
+    issuerKingdomId: kingdomId,
+    kind,
+    level,
+    status: 'available',
+    requiredAmount:
+      kind === 'deliver_food'
+        ? clamp(6 + level * 2, 6, 18)
+        : kind === 'escort_caravan'
+          ? clamp(10 + level * 2, 8, 20)
+          : kind === 'defend_settlement'
+            ? clamp(2 + Math.floor(level / 2), 2, 5)
+            : clamp(1 + Math.floor(level / 2), 1, 3),
+    progress: 0,
+    rewardReputation: 7 + level * 2,
+    rewardBountyReduction: 5 + level,
+    rewardGoods:
+      faction === 'merchant_bloc'
+        ? { tools: 2, iron_ingot: 1 }
+        : faction === 'war_hawks'
+          ? { tools: 2, gold_ore: 1 }
+          : { grain: 3, vegetables: 2 },
+    expiresTurn: world.turn + (24 - level),
+    meta: {
+      rivalryIncident: true,
+      courtFaction: faction,
+      rivalFaction,
+      courtDirective: `${factionLabel(faction)} Counter-Mandate`,
+      minCourtFavor: clamp(8 + level, 8, 26),
+      minReputation: clamp(8 + level * 2, 8, 60),
+    },
+  }
+
+  if (kind === 'deliver_food') {
+    contract.good = faction === 'merchant_bloc' ? 'grain' : 'fish'
+  }
+  if (kind === 'escort_caravan') {
+    const destination = Object.values(world.settlements)
+      .filter((settlement) => settlement.id !== issuer.id && settlement.kingdomId === kingdomId)
+      .sort((a, b) => b.populationIds.length - a.populationIds.length)[0]
+    if (!destination) {
+      contract.kind = 'deliver_food'
+      contract.good = 'grain'
+      contract.requiredAmount = clamp(7 + level * 2, 6, 18)
+    } else {
+      contract.meta.destinationSettlementId = destination.id
+      contract.good = 'tools'
+    }
+  }
+  if (kind === 'defend_settlement') {
+    contract.meta.targetSettlementId = issuer.id
+    contract.rewardBountyReduction += 2
+  }
+  if (kind === 'hunt_bandits') {
+    contract.rewardBountyReduction += 3
+  }
+
+  return contract
 }
 
 export const simulateCourtPolitics = (world: World, rng: SeededRng): string[] => {
@@ -445,6 +562,24 @@ export const simulateCourtPolitics = (world: World, rng: SeededRng): string[] =>
         .sort((left, right) => relationBetween(world, kingdomId, right) - relationBetween(world, kingdomId, left))[0]
       if (partnerId) setRelation(world, kingdomId, partnerId, relationBetween(world, kingdomId, partnerId) + 5)
       messages.push(`${kingdom.name} announced a grand trade fair edict from its royal court.`)
+    }
+
+    if (!hasOpenRivalryContractForKingdom(world, kingdomId) && policy.factionTension >= 46) {
+      const rivals = allCourtFactions.filter((candidate) => candidate !== policy.courtFaction)
+      const rivalFaction = rivals.sort(
+        (left, right) => scores[right] - scores[left],
+      )[0]
+      const rivalryChance = clamp(0.2 + (policy.factionTension - 46) * 0.012, 0.2, 0.72)
+      if (rivalFaction && rng.chance(rivalryChance)) {
+        const contract = createFactionRivalryContract(world, kingdomId, policy.courtFaction, rivalFaction, rng)
+        if (contract) {
+          world.contracts[contract.id] = contract
+          messages.push(
+            `${kingdom.name}'s ${factionLabel(policy.courtFaction)} challenged the ${factionLabel(rivalFaction)} with a court mandate.`,
+          )
+          policy.factionTension = clamp(policy.factionTension - 8, 0, 100)
+        }
+      }
     }
   }
 

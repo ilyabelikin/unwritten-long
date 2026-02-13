@@ -164,5 +164,42 @@ describe('world events under conflict', () => {
     expect(policy.activeEdict).toBe('trade_fair')
     expect(messages.some((line) => line.includes('merchant bloc'))).toBe(true)
   })
+
+  it('high faction tension can post rivalry mandate contracts', () => {
+    const base = generateWorld(9318)
+    const kingdomId = Object.keys(base.kingdoms)[0]
+    let spawned = false
+
+    for (let seed = 1; seed <= 28 && !spawned; seed += 1) {
+      const world = structuredClone(base)
+      world.contracts = {}
+      const policy = world.kingdoms[kingdomId].policy
+      policy.courtFaction = 'war_hawks'
+      policy.factionTension = 92
+      policy.activeEdict = 'none'
+      policy.courtStability = 48
+      policy.nobleInfluence = 52
+      for (const settlement of Object.values(world.settlements)) {
+        if (settlement.kingdomId === kingdomId) {
+          settlement.meta.prosperity = 49
+          settlement.meta.foodStress = 21
+        }
+      }
+      world.turn = 9
+      const messages = simulateCourtPolitics(world, new SeededRng(seed))
+      const rivalryContract = Object.values(world.contracts).find(
+        (contract) => contract.issuerKingdomId === kingdomId && contract.meta.rivalryIncident === true,
+      )
+      if (rivalryContract) {
+        spawned = true
+        expect(messages.some((line) => line.includes('court mandate'))).toBe(true)
+        expect(rivalryContract.meta.courtFaction).toBe(world.kingdoms[kingdomId].policy.courtFaction)
+        expect(typeof rivalryContract.meta.rivalFaction).toBe('string')
+        expect(Number(rivalryContract.meta.minCourtFavor ?? 0)).toBeGreaterThan(0)
+      }
+    }
+
+    expect(spawned).toBe(true)
+  })
 })
 

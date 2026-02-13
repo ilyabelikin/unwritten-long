@@ -594,6 +594,43 @@ describe('contracts system', () => {
     expect(world.playerCourtFavor.reformers).toBeGreaterThan(before)
   })
 
+  it('rivalry contracts reduce rival faction standing on completion', () => {
+    const world = generateWorld(9431)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const settlement = world.settlements[settlementId]
+    const contractId = `rivalry-standing-${world.turn}`
+    world.contracts[contractId] = {
+      id: contractId,
+      settlementId,
+      issuerKingdomId: settlement.kingdomId,
+      kind: 'deliver_food',
+      level: 2,
+      status: 'available',
+      good: 'grain',
+      requiredAmount: 4,
+      progress: 0,
+      rewardReputation: 7,
+      rewardBountyReduction: 4,
+      rewardGoods: {},
+      expiresTurn: world.turn + 20,
+      meta: {
+        courtFaction: 'merchant_bloc',
+        rivalFaction: 'war_hawks',
+        courtDirective: 'Merchant Bloc Counter-Mandate',
+      },
+    }
+    world.playerCourtFavor.merchant_bloc = 10
+    world.playerCourtFavor.war_hawks = 7
+    player.inventory.grain = 6
+    playerAcceptContract(world, contractId)
+    playerProgressContract(world)
+    expect(world.playerCourtFavor.merchant_bloc).toBeGreaterThan(10)
+    expect(world.playerCourtFavor.war_hawks).toBeLessThan(7)
+  })
+
   it('gates patronage contracts by faction standing requirement', () => {
     const world = generateWorld(9430)
     const player = world.characters[world.playerId]

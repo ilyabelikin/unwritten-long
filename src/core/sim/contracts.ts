@@ -566,6 +566,8 @@ export const simulateContractBoardTurn = (world: World, rng: SeededRng): string[
           addFavorForKingdom(world, contract.issuerKingdomId, -2)
           const faction = parseCourtFaction(contract.meta.courtFaction)
           if (faction) addCourtFavor(world, faction, -1)
+          const rivalFaction = parseCourtFaction(contract.meta.rivalFaction)
+          if (rivalFaction && rivalFaction !== faction) addCourtFavor(world, rivalFaction, 1)
         }
         messages.push(`Contract ${contract.id} expired before completion.`)
         if (chainId) {
@@ -625,6 +627,10 @@ const rewardPlayerForContract = (world: World, contract: Contract): void => {
       (contract.meta.courtPatronage ? 1 : 0) +
       (contract.meta.campaign ? 1 : 0)
     addCourtFavor(world, faction, courtGain)
+  }
+  const rivalFaction = parseCourtFaction(contract.meta.rivalFaction)
+  if (rivalFaction && rivalFaction !== faction) {
+    addCourtFavor(world, rivalFaction, -1)
   }
   for (const [good, qty] of Object.entries(contract.rewardGoods) as [Good, number][]) {
     if (!qty || qty <= 0) continue

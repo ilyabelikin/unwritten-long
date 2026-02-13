@@ -223,6 +223,9 @@ export const Hud = ({
                     {showContractFaction(activeContract.meta.courtFaction)}
                   </p>
                 )}
+                {typeof activeContract.meta.rivalFaction === 'string' && (
+                  <p>Rival target: {showContractFaction(activeContract.meta.rivalFaction)}</p>
+                )}
                 {activeContract.meta.courtPatronage === true && (
                   <p>Patronage tier: {String(activeContract.meta.courtPatronTitle ?? 'Court Patronage')}</p>
                 )}
@@ -282,6 +285,9 @@ export const Hud = ({
                             Directive: {String(contract.meta.courtDirective)} ·{' '}
                             {showContractFaction(contract.meta.courtFaction)}
                           </p>
+                        )}
+                        {typeof contract.meta.rivalFaction === 'string' && (
+                          <p>Rival target: {showContractFaction(contract.meta.rivalFaction)}</p>
                         )}
                         {contract.meta.courtPatronage === true && (
                           <p>Patronage: {String(contract.meta.courtPatronTitle ?? 'Court Patronage')}</p>

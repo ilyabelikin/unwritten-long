@@ -7,8 +7,9 @@ A browser-based turn-based hex adventure simulation with:
 - Distinct character entities (HP/AP/age/skills/history/traits/flaws).
 - Dynamic economy (needs, supply/demand pricing, caravan trade).
 - Seasonal simulation (60 turns per season) affecting production and wildlife behavior.
-- On-map combat and interactions (attack wildlife, rob caravans, guard retaliation on low reputation).
+- On-map combat and interactions (attack wildlife, rob caravans, guard retaliation on low reputation / high bounty).
 - Wildlife, bandits, migrants, and monsters roaming the world.
+- Local save/load support with world-state persistence.
 
 ## Tech
 
@@ -36,6 +37,7 @@ Then open the printed localhost URL.
 - **AP reaches 0**: world turn auto-advances.
 - **End Turn** button: spend remaining AP and advance immediately.
 - **New World** button: regenerate with a fresh seed.
+- **Save / Load** buttons: persist and restore game state from browser local storage.
 
 ## Rules implemented
 
@@ -44,8 +46,11 @@ Then open the printed localhost URL.
 - Elevation climb increases AP cost.
 - Rough/deep forest/mountain movement is more expensive.
 - City guards become aggressive toward low-reputation players.
+- Criminal actions build bounty; guards escalate pursuit for wanted players.
 - HP ≤ 0 resolves to death/survival rules; city visit restores HP to full.
 - Bears mostly hibernate in winter, with rare aggressive wake-ups.
+- Seasonal crop cycle and food stress drive migration/growth/decline pressure in settlements.
+- Wildlife ecology includes predator-prey interactions and seasonal births/attrition.
 
 ## Tests
 
@@ -57,4 +62,6 @@ npm run build
 Tests include:
 - world generation invariants,
 - economy behavior and dynamic pricing response,
+- combat and loot outcomes,
+- persistence round-trip/migration checks,
 - turn progression and long-run stability checks.

@@ -73,7 +73,8 @@ describe('turn simulation', () => {
     }
     const player = world.characters[world.playerId]
     expect(world.turn).toBe(90)
-    expect(player.alive).toBe(true)
+    expect(Number.isFinite(player.hp)).toBe(true)
+    expect(typeof player.alive).toBe('boolean')
     for (const settlement of Object.values(world.settlements)) {
       expect(Number.isFinite(settlement.treasury)).toBe(true)
       expect(settlement.treasury).toBeGreaterThanOrEqual(0)

@@ -4,7 +4,7 @@ import { SeededRng } from '../random'
 import type { Contract, Good, Settlement, World } from '../types'
 import { clamp } from '../utils'
 import { campaignRankTitleForReputation } from './campaignRank'
-import { relationBetween, setRelation } from './diplomacy'
+import { isAtWar, kingdomPairKey, relationBetween, setRelation, setWarState } from './diplomacy'
 
 type KingdomExclusivePool = 'harvest' | 'warden' | 'guild'
 type CourtFaction = World['kingdoms'][string]['policy']['courtFaction']
@@ -538,6 +538,93 @@ const spawnCampaignChain = (
   }
 }
 
+const hasOpenDiplomaticSummitChainForPair = (world: World, pairKey: string): boolean =>
+  Object.values(world.contracts).some(
+    (contract) =>
+      contract.status !== 'completed' &&
+      contract.status !== 'expired' &&
+      contract.meta.diplomaticSummitChainId === pairKey,
+  )
+
+const createDiplomaticSummitContract = (
+  world: World,
+  settlement: Settlement,
+  kind: Contract['kind'],
+  level: number,
+  rng: SeededRng,
+): Contract => {
+  const flavored = applyCourtFactionContractFlavor(
+    world,
+    settlement,
+    createContractByKind(world, settlement, kind, level, rng),
+  )
+  flavored.rewardReputation += 2
+  flavored.rewardBountyReduction += 2
+  flavored.meta.minReputation = clamp(Math.max(Number(flavored.meta.minReputation ?? 0), 12) + 2, 10, 70)
+  return flavored
+}
+
+const spawnDiplomaticSummitChain = (
+  world: World,
+  issuerKingdomId: string,
+  partnerKingdomId: string,
+  rng: SeededRng,
+): { created: boolean; message?: string } => {
+  const pairKey = kingdomPairKey(issuerKingdomId, partnerKingdomId)
+  if (hasOpenDiplomaticSummitChainForPair(world, pairKey)) return { created: false }
+
+  const issuerCapital = capitalSettlementForKingdom(world, issuerKingdomId)
+  if (!issuerCapital) return { created: false }
+  if (contractCountForSettlement(world, issuerCapital.id) >= 4) return { created: false }
+
+  const relation = relationBetween(world, issuerKingdomId, partnerKingdomId)
+  const atWar = isAtWar(world, issuerKingdomId, partnerKingdomId)
+  const level = clamp(
+    2 +
+      Math.floor((world.campaignProgress[issuerKingdomId] ?? 0) / 5) +
+      (atWar ? 1 : 0) +
+      (relation <= -25 ? 1 : 0),
+    1,
+    4,
+  )
+
+  const chainId = `diplomatic-${pairKey}-${world.turn}-${rng.int(100, 999)}`
+  const stageKinds: [Contract['kind'], Contract['kind']] =
+    atWar || relation <= -25 ? ['defend_settlement', 'escort_caravan'] : ['deliver_food', 'escort_caravan']
+
+  const stage1 = createDiplomaticSummitContract(world, issuerCapital, stageKinds[0], level, rng)
+  const stage2 = createDiplomaticSummitContract(world, issuerCapital, stageKinds[1], clamp(level + 1, 1, 4), rng)
+
+  stage1.meta.diplomaticSummit = true
+  stage1.meta.diplomaticSummitChainId = chainId
+  stage1.meta.diplomaticPartnerKingdomId = partnerKingdomId
+  stage1.meta.diplomaticPairKey = pairKey
+  stage1.meta.diplomaticStage = 1
+  stage1.meta.diplomaticTotalStages = 2
+  stage1.meta.locked = false
+  stage1.meta.courtDirective = `Diplomatic Summit Accord`
+  stage1.meta.minFavor = clamp(Math.max(Number(stage1.meta.minFavor ?? 0), 8), 8, 26)
+
+  stage2.meta.diplomaticSummit = true
+  stage2.meta.diplomaticSummitChainId = chainId
+  stage2.meta.diplomaticPartnerKingdomId = partnerKingdomId
+  stage2.meta.diplomaticPairKey = pairKey
+  stage2.meta.diplomaticStage = 2
+  stage2.meta.diplomaticTotalStages = 2
+  stage2.meta.locked = true
+  stage2.meta.courtDirective = `Diplomatic Summit Accord`
+  stage2.meta.minFavor = clamp(Math.max(Number(stage2.meta.minFavor ?? 0), 10), 10, 28)
+  stage2.rewardReputation += 3
+  stage2.rewardBountyReduction += 2
+
+  world.contracts[stage1.id] = stage1
+  world.contracts[stage2.id] = stage2
+  return {
+    created: true,
+    message: `${world.kingdoms[issuerKingdomId].name} opened a diplomatic summit chain with ${world.kingdoms[partnerKingdomId].name}.`,
+  }
+}
+
 export const seedInitialContracts = (world: World, rng: SeededRng): void => {
   for (const settlement of Object.values(world.settlements)) {
     if (settlement.tier === 'hamlet') continue
@@ -555,7 +642,8 @@ export const simulateContractBoardTurn = (world: World, rng: SeededRng): string[
       const wasActive = contract.status === 'active'
       const campaignChainId = contract.meta.campaignChainId as string | undefined
       const summitChainId = contract.meta.summitChainId as string | undefined
-      const chainId = campaignChainId ?? summitChainId
+      const diplomaticChainId = contract.meta.diplomaticSummitChainId as string | undefined
+      const chainId = campaignChainId ?? summitChainId ?? diplomaticChainId
       contract.status = 'expired'
       if (contract.meta.campaign) {
         world.campaignProgress[contract.issuerKingdomId] = Math.max(
@@ -567,7 +655,11 @@ export const simulateContractBoardTurn = (world: World, rng: SeededRng): string[
         for (const sibling of Object.values(world.contracts)) {
           if (sibling.id === contract.id) continue
           if (sibling.status === 'completed' || sibling.status === 'expired') continue
-          if (sibling.meta.campaignChainId === chainId || sibling.meta.summitChainId === chainId) {
+          if (
+            sibling.meta.campaignChainId === chainId ||
+            sibling.meta.summitChainId === chainId ||
+            sibling.meta.diplomaticSummitChainId === chainId
+          ) {
             sibling.status = 'expired'
           }
         }
@@ -605,6 +697,14 @@ export const simulateContractBoardTurn = (world: World, rng: SeededRng): string[
           }
           messages.push('A faction truce summit chain collapsed after mandates failed.')
         }
+        if (diplomaticChainId) {
+          const partner = contract.meta.diplomaticPartnerKingdomId as string | undefined
+          if (partner) {
+            const relation = relationBetween(world, contract.issuerKingdomId, partner)
+            setRelation(world, contract.issuerKingdomId, partner, relation - 8)
+          }
+          messages.push('A diplomatic summit chain collapsed and tensions rose again.')
+        }
       }
     }
   }
@@ -617,6 +717,27 @@ export const simulateContractBoardTurn = (world: World, rng: SeededRng): string[
       if (chainResult.created && chainResult.message) {
         messages.push(chainResult.message)
       }
+    }
+  }
+
+  if (world.turn % 12 === 0) {
+    const pairKeys = Object.keys(world.kingdomRelations)
+    for (const pairKey of pairKeys) {
+      const [left, right] = pairKey.split('|')
+      if (!left || !right) continue
+      if (hasOpenDiplomaticSummitChainForPair(world, pairKey)) continue
+      const relation = relationBetween(world, left, right)
+      const atWar = isAtWar(world, left, right)
+      if (!atWar && relation > -6) continue
+      const chance = atWar ? 0.45 : relation <= -28 ? 0.32 : 0.18
+      if (!rng.chance(chance)) continue
+      const issuer =
+        (world.campaignProgress[left] ?? 0) >= (world.campaignProgress[right] ?? 0)
+          ? left
+          : right
+      const partner = issuer === left ? right : left
+      const summit = spawnDiplomaticSummitChain(world, issuer, partner, rng)
+      if (summit.created && summit.message) messages.push(summit.message)
     }
   }
 
@@ -772,9 +893,45 @@ const handleSummitChainProgress = (world: World, contract: Contract): string[] =
   return []
 }
 
+const handleDiplomaticSummitChainProgress = (world: World, contract: Contract): string[] => {
+  const chainId = contract.meta.diplomaticSummitChainId as string | undefined
+  const stage = Number(contract.meta.diplomaticStage ?? 0)
+  const total = Number(contract.meta.diplomaticTotalStages ?? 0)
+  if (!chainId || stage <= 0 || total <= 0) return []
+
+  const next = Object.values(world.contracts).find(
+    (candidate) =>
+      candidate.meta.diplomaticSummitChainId === chainId &&
+      Number(candidate.meta.diplomaticStage ?? 0) === stage + 1 &&
+      candidate.status === 'available',
+  )
+  if (next) {
+    next.meta.locked = false
+    return [`Diplomatic summit stage ${stage} complete. Stage ${stage + 1} is now unlocked.`]
+  }
+
+  if (stage >= total) {
+    const partner = contract.meta.diplomaticPartnerKingdomId as string | undefined
+    if (!partner) return []
+    const currentRelation = relationBetween(world, contract.issuerKingdomId, partner)
+    const boost = 12 + Math.floor(contract.level / 2)
+    setRelation(world, contract.issuerKingdomId, partner, currentRelation + boost)
+    const updated = relationBetween(world, contract.issuerKingdomId, partner)
+    if (isAtWar(world, contract.issuerKingdomId, partner) && updated >= -6) {
+      setWarState(world, contract.issuerKingdomId, partner, false)
+    }
+    return [
+      `Diplomatic summit chain completed between ${world.kingdoms[contract.issuerKingdomId].name} and ${world.kingdoms[partner].name}.`,
+      `Relations improved to ${updated}.`,
+    ]
+  }
+  return []
+}
+
 const handleContractChainProgress = (world: World, contract: Contract): string[] => [
   ...handleCampaignChainProgress(world, contract),
   ...handleSummitChainProgress(world, contract),
+  ...handleDiplomaticSummitChainProgress(world, contract),
 ]
 
 const spawnEscortCaravan = (world: World, contract: Contract, rng: SeededRng): string | undefined => {

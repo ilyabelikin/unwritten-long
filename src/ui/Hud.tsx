@@ -247,10 +247,24 @@ export const Hud = ({
                     {Number(activeContract.meta.summitTotalStages)}
                   </p>
                 )}
+                {typeof activeContract.meta.diplomaticSummitChainId === 'string' && (
+                  <p>
+                    Diplomatic stage {Number(activeContract.meta.diplomaticStage)}/
+                    {Number(activeContract.meta.diplomaticTotalStages)}
+                  </p>
+                )}
                 {typeof activeContract.meta.rivalFaction === 'string' && (
                   <p>Rival target: {showContractFaction(activeContract.meta.rivalFaction)}</p>
                 )}
+                {typeof activeContract.meta.diplomaticPartnerKingdomId === 'string' && (
+                  <p>
+                    Diplomatic partner:{' '}
+                    {world.kingdoms[activeContract.meta.diplomaticPartnerKingdomId]?.name ??
+                      activeContract.meta.diplomaticPartnerKingdomId}
+                  </p>
+                )}
                 {activeContract.meta.truceIncident === true && <p>Truce summit objective</p>}
+                {activeContract.meta.diplomaticSummit === true && <p>Diplomatic summit objective</p>}
                 {activeContract.meta.courtPatronage === true && (
                   <p>Patronage tier: {String(activeContract.meta.courtPatronTitle ?? 'Court Patronage')}</p>
                 )}
@@ -334,7 +348,24 @@ export const Hud = ({
                             {Number(contract.meta.summitTotalStages)}
                           </p>
                         )}
+                        {typeof contract.meta.diplomaticSummitChainId === 'string' && (
+                          <p>
+                            Diplomatic stage {Number(contract.meta.diplomaticStage)}/
+                            {Number(contract.meta.diplomaticTotalStages)}
+                          </p>
+                        )}
+                        {typeof contract.meta.diplomaticPartnerKingdomId === 'string' && (
+                          (() => {
+                            const partnerId = contract.meta.diplomaticPartnerKingdomId
+                            return (
+                              <p>
+                                Diplomatic partner: {world.kingdoms[partnerId]?.name ?? partnerId}
+                              </p>
+                            )
+                          })()
+                        )}
                         {contract.meta.truceIncident === true && <p>Truce summit objective</p>}
+                        {contract.meta.diplomaticSummit === true && <p>Diplomatic summit objective</p>}
                         {contract.meta.courtPatronage === true && (
                           <p>Patronage: {String(contract.meta.courtPatronTitle ?? 'Court Patronage')}</p>
                         )}

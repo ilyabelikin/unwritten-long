@@ -3,6 +3,7 @@ import type { Contract } from '../types'
 import { SeededRng } from '../random'
 import { generateWorld } from '../worldgen/generateWorld'
 import { kingdomExclusivePool, seedInitialContracts, simulateContractBoardTurn } from './contracts'
+import { isAtWar, relationBetween, setRelation, setWarState } from './diplomacy'
 import { playerAcceptContract, playerProgressContract } from './turn'
 
 describe('contracts system', () => {
@@ -812,6 +813,115 @@ describe('contracts system', () => {
     expect(policy.factionTrucePair).toBe('none')
     expect(world.playerCourtFavor.merchant_bloc).toBeGreaterThan(beforeMerchant)
     expect(world.playerCourtFavor.reformers).toBeGreaterThan(beforeReformers)
+  })
+
+  it('can post diplomatic summit chains for tense kingdom pairs', () => {
+    const base = generateWorld(9434)
+    const pair = Object.keys(base.kingdomRelations)[0]
+    expect(pair).toBeDefined()
+    if (!pair) return
+    const [left, right] = pair.split('|')
+    setRelation(base, left, right, -32)
+    base.turn = 12
+    let found = false
+
+    for (let seed = 1; seed <= 30 && !found; seed += 1) {
+      const world = structuredClone(base)
+      const messages = simulateContractBoardTurn(world, new SeededRng(seed))
+      const summitContracts = Object.values(world.contracts)
+        .filter((contract) => contract.meta.diplomaticSummit === true && contract.meta.diplomaticPairKey === pair)
+        .sort((a, b) => Number(a.meta.diplomaticStage ?? 0) - Number(b.meta.diplomaticStage ?? 0))
+      if (summitContracts.length >= 2) {
+        found = true
+        expect(messages.some((line) => line.includes('diplomatic summit chain'))).toBe(true)
+        expect(summitContracts[0].meta.locked).not.toBe(true)
+        expect(summitContracts[1].meta.locked).toBe(true)
+      }
+    }
+
+    expect(found).toBe(true)
+  })
+
+  it('diplomatic summit chain completion improves relations and can end war', () => {
+    const world = generateWorld(9435)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const settlement = world.settlements[settlementId]
+    const issuerKingdomId = settlement.kingdomId
+    const partnerKingdomId = Object.keys(world.kingdoms).find((id) => id !== issuerKingdomId)
+    expect(partnerKingdomId).toBeDefined()
+    if (!partnerKingdomId) return
+    setRelation(world, issuerKingdomId, partnerKingdomId, -8)
+    setWarState(world, issuerKingdomId, partnerKingdomId, true)
+    const relationBefore = relationBetween(world, issuerKingdomId, partnerKingdomId)
+
+    const stage1Id = `dip-stage1-${world.turn}`
+    const stage2Id = `dip-stage2-${world.turn}`
+    world.contracts[stage1Id] = {
+      id: stage1Id,
+      settlementId,
+      issuerKingdomId,
+      kind: 'deliver_food',
+      level: 2,
+      status: 'available',
+      good: 'grain',
+      requiredAmount: 4,
+      progress: 0,
+      rewardReputation: 8,
+      rewardBountyReduction: 5,
+      rewardGoods: { tools: 1 },
+      expiresTurn: world.turn + 20,
+      meta: {
+        diplomaticSummit: true,
+        diplomaticSummitChainId: 'dip-chain',
+        diplomaticStage: 1,
+        diplomaticTotalStages: 2,
+        diplomaticPartnerKingdomId: partnerKingdomId,
+        diplomaticPairKey: [issuerKingdomId, partnerKingdomId].sort().join('|'),
+        locked: false,
+      },
+    }
+    world.contracts[stage2Id] = {
+      id: stage2Id,
+      settlementId,
+      issuerKingdomId,
+      kind: 'deliver_food',
+      level: 3,
+      status: 'available',
+      good: 'grain',
+      requiredAmount: 5,
+      progress: 0,
+      rewardReputation: 10,
+      rewardBountyReduction: 7,
+      rewardGoods: { iron_ingot: 1 },
+      expiresTurn: world.turn + 22,
+      meta: {
+        diplomaticSummit: true,
+        diplomaticSummitChainId: 'dip-chain',
+        diplomaticStage: 2,
+        diplomaticTotalStages: 2,
+        diplomaticPartnerKingdomId: partnerKingdomId,
+        diplomaticPairKey: [issuerKingdomId, partnerKingdomId].sort().join('|'),
+        locked: true,
+      },
+    }
+
+    const blocked = playerAcceptContract(world, stage2Id)
+    expect(blocked[0]).toContain('locked')
+    player.inventory.grain = 12
+    playerAcceptContract(world, stage1Id)
+    const stage1Done = playerProgressContract(world)
+    expect(stage1Done.some((line) => line.includes('Diplomatic summit stage 1 complete'))).toBe(true)
+    expect(world.contracts[stage2Id].meta.locked).not.toBe(true)
+
+    playerAcceptContract(world, stage2Id)
+    const stage2Done = playerProgressContract(world)
+    expect(stage2Done.some((line) => line.includes('Diplomatic summit chain completed'))).toBe(true)
+    const relationAfter = relationBetween(world, issuerKingdomId, partnerKingdomId)
+    expect(relationAfter).toBeGreaterThan(relationBefore)
+    expect(isAtWar(world, issuerKingdomId, partnerKingdomId)).toBe(false)
   })
 })
 

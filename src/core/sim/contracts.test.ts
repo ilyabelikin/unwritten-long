@@ -283,6 +283,34 @@ describe('contracts system', () => {
     expect(stage2.meta.locked).not.toBe(true)
   })
 
+  it('expires remaining campaign chain stages when one stage times out', () => {
+    const world = generateWorld(9420)
+    const kingdomId = Object.keys(world.kingdoms).find(
+      (id) => Object.values(world.settlements).filter((settlement) => settlement.kingdomId === id).length >= 2,
+    )
+    expect(kingdomId).toBeDefined()
+    if (!kingdomId) return
+    world.campaignProgress[kingdomId] = 8
+    world.turn = 10
+    simulateContractBoardTurn(world, new SeededRng(19))
+
+    const chainContracts = Object.values(world.contracts)
+      .filter((contract) => contract.issuerKingdomId === kingdomId && Boolean(contract.meta.campaignChainId))
+      .sort((a, b) => Number(a.meta.campaignStage) - Number(b.meta.campaignStage))
+    expect(chainContracts.length).toBeGreaterThanOrEqual(3)
+    if (chainContracts.length < 3) return
+
+    const stage1 = chainContracts[0]
+    stage1.status = 'active'
+    stage1.expiresTurn = world.turn
+    world.turn += 2
+    const messages = simulateContractBoardTurn(world, new SeededRng(20))
+    expect(stage1.status).toBe('expired')
+    expect(chainContracts[1].status).toBe('expired')
+    expect(chainContracts[2].status).toBe('expired')
+    expect(messages.some((line) => line.includes('campaign chain collapsed'))).toBe(true)
+  })
+
   it('prefers defense contracts for settlements under siege pressure', () => {
     const base = generateWorld(9417)
     const settlement = Object.values(base.settlements).find((candidate) => candidate.tier !== 'hamlet')

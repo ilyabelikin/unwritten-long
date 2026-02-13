@@ -324,6 +324,7 @@ export const simulateContractBoardTurn = (world: World, rng: SeededRng): string[
     if (contract.status === 'completed' || contract.status === 'expired') continue
     if (world.turn > contract.expiresTurn) {
       const wasActive = contract.status === 'active'
+      const chainId = contract.meta.campaignChainId as string | undefined
       contract.status = 'expired'
       if (contract.meta.campaign) {
         world.campaignProgress[contract.issuerKingdomId] = Math.max(
@@ -331,8 +332,20 @@ export const simulateContractBoardTurn = (world: World, rng: SeededRng): string[
           (world.campaignProgress[contract.issuerKingdomId] ?? 0) - 1,
         )
       }
+      if (chainId) {
+        for (const sibling of Object.values(world.contracts)) {
+          if (sibling.id === contract.id) continue
+          if (sibling.status === 'completed' || sibling.status === 'expired') continue
+          if (sibling.meta.campaignChainId === chainId) {
+            sibling.status = 'expired'
+          }
+        }
+      }
       if (wasActive) {
         messages.push(`Contract ${contract.id} expired before completion.`)
+        if (chainId) {
+          messages.push('A royal campaign chain collapsed after missing critical objectives.')
+        }
       }
     }
   }

@@ -1,7 +1,7 @@
 import { keyFor, neighborsOf } from '../hex'
 import { SeededRng } from '../random'
 import { clamp } from '../utils'
-import { isAtWar, kingdomPairKey } from './diplomacy'
+import { isAtWar, kingdomPairKey, relationBetween, setRelation } from './diplomacy'
 import type { Character, Species, World } from '../types'
 
 const wildlifeForTile = (rng: SeededRng): Species => {
@@ -238,6 +238,95 @@ export const simulateJusticeEvents = (world: World, rng: SeededRng): string[] =>
         const message = tryCorruptionCrackdown(world, kingdomId)
         if (message) messages.push(message)
       }
+    }
+  }
+
+  return messages
+}
+
+const averageProsperityForKingdom = (world: World, kingdomId: string): number => {
+  const settlements = Object.values(world.settlements).filter((settlement) => settlement.kingdomId === kingdomId)
+  if (settlements.length === 0) return 45
+  return settlements.reduce((sum, settlement) => sum + settlement.meta.prosperity, 0) / settlements.length
+}
+
+const warCountForKingdom = (world: World, kingdomId: string): number =>
+  Object.keys(world.kingdomConflicts).filter((pair) => {
+    if (!world.kingdomConflicts[pair]) return false
+    const [left, right] = pair.split('|')
+    return left === kingdomId || right === kingdomId
+  }).length
+
+const isEdictExpired = (world: World, kingdomId: string): boolean => {
+  const policy = world.kingdoms[kingdomId]?.policy
+  if (!policy || policy.activeEdict === 'none') return false
+  return policy.edictExpiresTurn >= 0 && world.turn > policy.edictExpiresTurn
+}
+
+export const simulateCourtPolitics = (world: World, rng: SeededRng): string[] => {
+  const messages: string[] = []
+  const kingdomIds = Object.keys(world.kingdoms)
+
+  for (const kingdomId of kingdomIds) {
+    const policy = world.kingdoms[kingdomId]?.policy
+    if (!policy) continue
+    if (isEdictExpired(world, kingdomId)) {
+      messages.push(`${world.kingdoms[kingdomId].name}'s ${policy.activeEdict.replace('_', ' ')} edict expired.`)
+      policy.activeEdict = 'none'
+      policy.edictExpiresTurn = -1
+    }
+  }
+
+  if (world.turn % 9 !== 0) return messages
+
+  for (const kingdomId of kingdomIds) {
+    const kingdom = world.kingdoms[kingdomId]
+    const policy = kingdom.policy
+    const prosperity = averageProsperityForKingdom(world, kingdomId)
+    const wars = warCountForKingdom(world, kingdomId)
+
+    policy.courtStability = clamp(
+      Math.round(policy.courtStability + (prosperity >= 58 ? 2 : -2) - wars * 2 + (policy.tradeStance === 'open' ? 1 : 0)),
+      0,
+      100,
+    )
+    policy.nobleInfluence = clamp(
+      Math.round(policy.nobleInfluence + (policy.taxRate >= 0.16 ? 2 : 0) + wars - (prosperity >= 60 ? 1 : 0)),
+      0,
+      100,
+    )
+
+    if (policy.courtStability <= 30 && policy.nobleInfluence >= 58 && rng.chance(0.55)) {
+      policy.activeEdict = 'martial_law'
+      policy.edictExpiresTurn = world.turn + 15
+      policy.tradeStance = 'protectionist'
+      policy.guardHostilityReputation = clamp(policy.guardHostilityReputation + 2, -30, -6)
+      policy.guardHostilityBounty = clamp(policy.guardHostilityBounty - 2, 10, 34)
+      const otherId = kingdomIds.filter((id) => id !== kingdomId).sort((left, right) =>
+        relationBetween(world, kingdomId, left) - relationBetween(world, kingdomId, right),
+      )[0]
+      if (otherId) setRelation(world, kingdomId, otherId, relationBetween(world, kingdomId, otherId) - 6)
+      messages.push(`${kingdom.name} suffered a noble court coup and imposed martial law.`)
+      continue
+    }
+
+    if (policy.activeEdict === 'none' && prosperity < 38 && rng.chance(0.34)) {
+      policy.activeEdict = 'tax_relief'
+      policy.edictExpiresTurn = world.turn + 12
+      policy.taxRate = clamp(policy.taxRate - 0.01, 0.05, 0.28)
+      messages.push(`${kingdom.name} enacted a court-backed tax relief edict to calm unrest.`)
+      continue
+    }
+
+    if (policy.activeEdict === 'none' && prosperity > 62 && wars === 0 && rng.chance(0.3)) {
+      policy.activeEdict = 'trade_fair'
+      policy.edictExpiresTurn = world.turn + 12
+      policy.tradeStance = 'open'
+      const partnerId = kingdomIds
+        .filter((id) => id !== kingdomId)
+        .sort((left, right) => relationBetween(world, kingdomId, right) - relationBetween(world, kingdomId, left))[0]
+      if (partnerId) setRelation(world, kingdomId, partnerId, relationBetween(world, kingdomId, partnerId) + 5)
+      messages.push(`${kingdom.name} announced a grand trade fair edict from its royal court.`)
     }
   }
 

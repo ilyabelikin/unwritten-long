@@ -141,6 +141,10 @@ export interface Kingdom {
     guardHostilityBounty: number
     bountyDecayPerTick: number
     pardonGoldFactor: number
+    courtStability: number
+    nobleInfluence: number
+    activeEdict: 'none' | 'martial_law' | 'tax_relief' | 'trade_fair'
+    edictExpiresTurn: number
   }
 }
 

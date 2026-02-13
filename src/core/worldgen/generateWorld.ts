@@ -221,6 +221,10 @@ const assignKingdoms = (
         guardHostilityBounty: [20, 27, 14][index],
         bountyDecayPerTick: [2, 3, 1][index],
         pardonGoldFactor: [1, 0.82, 1.35][index],
+        courtStability: [56, 62, 48][index],
+        nobleInfluence: [46, 38, 58][index],
+        activeEdict: 'none',
+        edictExpiresTurn: -1,
       },
     }
   })

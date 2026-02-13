@@ -52,6 +52,9 @@ describe('diplomacy simulation', () => {
       expect(kingdom.policy.guardHostilityBounty).toBeGreaterThanOrEqual(10)
       expect(kingdom.policy.bountyDecayPerTick).toBeGreaterThan(0)
       expect(kingdom.policy.pardonGoldFactor).toBeGreaterThan(0)
+      expect(kingdom.policy.courtStability).toBeGreaterThanOrEqual(0)
+      expect(kingdom.policy.nobleInfluence).toBeGreaterThanOrEqual(0)
+      expect(['none', 'martial_law', 'tax_relief', 'trade_fair']).toContain(kingdom.policy.activeEdict)
     }
   })
 

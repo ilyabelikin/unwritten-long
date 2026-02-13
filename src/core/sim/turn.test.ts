@@ -252,6 +252,29 @@ describe('turn simulation', () => {
     expect(Number(player.meta.bounty ?? 0)).toBe(18)
   })
 
+  it('martial law edicts reduce bounty decay and harden pardon cost', () => {
+    const world = generateWorld(9111)
+    const citySettlement = Object.values(world.settlements).find((settlement) => settlement.tier === 'city')
+    expect(citySettlement).toBeDefined()
+    if (!citySettlement) return
+    const player = world.characters[world.playerId]
+    player.location = citySettlement.tiles[0]
+    player.meta.bounty = 35
+    player.inventory.gold_ore = 1
+    const policy = world.kingdoms[citySettlement.kingdomId].policy
+    policy.bountyDecayPerTick = 3
+    policy.pardonGoldFactor = 1
+    policy.activeEdict = 'martial_law'
+    policy.edictExpiresTurn = world.turn + 30
+
+    world.turn = 4
+    advanceWorldTurn(world, 9)
+    expect(Number(player.meta.bounty ?? 0)).toBe(33)
+
+    const denied = playerRequestPardon(world)
+    expect(denied[0]).toContain('requires 2 gold ore')
+  })
+
   it('pardon cost scales with kingdom legal policy factor', () => {
     const world = generateWorld(9100)
     const citySettlement = Object.values(world.settlements).find((settlement) => settlement.tier === 'city')

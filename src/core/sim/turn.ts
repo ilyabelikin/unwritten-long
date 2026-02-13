@@ -6,8 +6,14 @@ import { clamp } from '../utils'
 import { performAttack, healInCities, isAggressiveTowards, cityGuardSpawnTiles } from './combat'
 import { acceptContractForPlayer, progressActiveContractForPlayer, simulateContractBoardTurn } from './contracts'
 import { isAtWar, relationBetween, setRelation, setWarState, simulateDiplomacyTurn } from './diplomacy'
+import {
+  effectiveBountyDecayPerTick,
+  effectiveGuardHostilityBounty,
+  effectiveGuardHostilityReputation,
+  effectivePardonGoldFactor,
+} from './edicts'
 import { simulateEconomyTurn, estimateGoodPrice } from './economy'
-import { simulateJusticeEvents, spawnWorldEvents } from './events'
+import { simulateCourtPolitics, simulateJusticeEvents, spawnWorldEvents } from './events'
 import { simulateSiegePressure } from './siege'
 import { simulateWildlifeEcology } from './wildlife'
 
@@ -271,8 +277,8 @@ const processNpcIntent = (world: World, actor: Character, rng: SeededRng, messag
     const manhuntKingdom = player.meta.manhuntKingdomId as string | undefined
     const manhuntExpiresTurn = Number(player.meta.manhuntExpiresTurn ?? -1)
     const manhuntActive = manhuntKingdom === guardKingdomId && manhuntExpiresTurn >= world.turn
-    const repHostility = (legalPolicy?.guardHostilityReputation ?? -20) + (manhuntActive ? 8 : 0)
-    const bountyHostility = Math.max(8, (legalPolicy?.guardHostilityBounty ?? 20) - (manhuntActive ? 8 : 0))
+    const repHostility = legalPolicy ? effectiveGuardHostilityReputation(legalPolicy, manhuntActive) : -20
+    const bountyHostility = legalPolicy ? effectiveGuardHostilityBounty(legalPolicy, manhuntActive) : 20
     const criminalHeat = getPlayerBounty(world)
     if (player.reputation <= repHostility || criminalHeat >= bountyHostility) {
       const chaseRadiusBase = patrolFocus >= 0.75 ? 6 : patrolFocus >= 0.5 ? 5 : 4
@@ -464,6 +470,7 @@ export const advanceWorldTurn = (world: World, seedOffset = 0): string[] => {
   messages.push(...simulateEconomyTurn(world, rng))
   messages.push(...simulateContractBoardTurn(world, rng))
   messages.push(...simulateDiplomacyTurn(world, rng))
+  messages.push(...simulateCourtPolitics(world, rng))
   messages.push(...simulateJusticeEvents(world, rng))
 
   Object.values(world.characters).forEach((char) => {
@@ -513,7 +520,8 @@ export const advanceWorldTurn = (world: World, seedOffset = 0): string[] => {
   if (player?.alive) {
     const bounty = Number(player.meta.bounty ?? 0)
     if (bounty > 0 && world.tiles[player.location].settlementId && world.seasonTurn % 5 === 0) {
-      const decay = legalPolicyForTile(world, player.location)?.bountyDecayPerTick ?? 2
+      const legalPolicy = legalPolicyForTile(world, player.location)
+      const decay = legalPolicy ? effectiveBountyDecayPerTick(legalPolicy) : 2
       player.meta.bounty = Math.max(0, bounty - decay)
     }
     const manhuntExpires = Number(player.meta.manhuntExpiresTurn ?? -1)
@@ -714,7 +722,7 @@ export const playerRequestPardon = (world: World): string[] => {
 
   const gold = Math.floor(player.inventory.gold_ore ?? 0)
   const tools = Math.floor(player.inventory.tools ?? 0)
-  const pardonFactor = legalPolicy?.pardonGoldFactor ?? 1
+  const pardonFactor = legalPolicy ? effectivePardonGoldFactor(legalPolicy) : 1
   const requiredGold = Math.max(1, Math.ceil((bounty / 35) * pardonFactor))
   if (gold < requiredGold && tools < requiredGold * 3) {
     return [`Pardon requires ${requiredGold} gold ore (or ${requiredGold * 3} tools).`]

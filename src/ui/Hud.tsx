@@ -2,6 +2,7 @@ import { estimateGoodPrice } from '../core/sim/economy'
 import { campaignRankInfo, campaignRankTitleForReputation } from '../core/sim/campaignRank'
 import { SPECIES_LABEL } from '../core/data/content'
 import { relationBetween } from '../core/sim/diplomacy'
+import { edictLabel } from '../core/sim/edicts'
 import { favorRankTitle } from '../core/sim/favor'
 import type { Contract } from '../core/types'
 import type { Good, World } from '../core/types'
@@ -420,6 +421,14 @@ export const Hud = ({
               <span>Guard bounty≥{kingdom.policy.guardHostilityBounty}</span>
               <span>Bounty decay: {kingdom.policy.bountyDecayPerTick}/tick</span>
               <span>Pardon factor: {kingdom.policy.pardonGoldFactor.toFixed(2)}x</span>
+              <span>Court stability: {kingdom.policy.courtStability}</span>
+              <span>Noble influence: {kingdom.policy.nobleInfluence}</span>
+              <span>
+                Edict: {edictLabel(kingdom.policy.activeEdict)}
+                {kingdom.policy.activeEdict !== 'none' && kingdom.policy.edictExpiresTurn >= world.turn
+                  ? ` (until ${kingdom.policy.edictExpiresTurn})`
+                  : ''}
+              </span>
               <span>Campaign: {world.campaignProgress[kingdom.id] ?? 0}</span>
               <span>
                 Favor: {world.playerKingdomFavor[kingdom.id] ?? 0} ({favorRankTitle(world.playerKingdomFavor[kingdom.id] ?? 0)})

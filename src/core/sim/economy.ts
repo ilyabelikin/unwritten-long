@@ -4,6 +4,7 @@ import { keyFor, neighborsOf, parseKey } from '../hex'
 import { safestPath, shortestPath } from '../pathing'
 import { SeededRng } from '../random'
 import { isAtWar, relationBetween } from './diplomacy'
+import { effectiveTaxRate } from './edicts'
 import type { BuildingType, Character, CropStage, Good, Settlement, SettlementTier, World } from '../types'
 import { addGoods, clamp, consumeGoods, createGoodRecord } from '../utils'
 
@@ -738,7 +739,8 @@ export const simulateEconomyTurn = (world: World, rng: SeededRng): string[] => {
       }
       addGoods(settlement.stockpile, production)
       const taxIncome = Object.values(production).reduce((acc, amount) => acc + amount * 0.4, 0)
-      const taxRate = world.kingdoms[settlement.kingdomId]?.policy.taxRate ?? 0.12
+      const policy = world.kingdoms[settlement.kingdomId]?.policy
+      const taxRate = policy ? effectiveTaxRate(policy) : 0.12
       settlement.treasury += Math.round(taxIncome * (0.65 + taxRate))
     }
 

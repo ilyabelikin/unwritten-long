@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { generateWorld } from '../worldgen/generateWorld'
 import { SeededRng } from '../random'
 import { setRelation, setWarState } from './diplomacy'
-import { tryCorruptionCrackdown, tryDeclareManhunt, tryIssueAmnestyDecree, trySpawnWarRefugee } from './events'
+import {
+  simulateCourtPolitics,
+  tryCorruptionCrackdown,
+  tryDeclareManhunt,
+  tryIssueAmnestyDecree,
+  trySpawnWarRefugee,
+} from './events'
 
 describe('world events under conflict', () => {
   it('can spawn refugees when kingdoms are at war', () => {
@@ -78,6 +84,33 @@ describe('world events under conflict', () => {
     expect(message).toContain('anti-corruption crackdowns')
     expect(policy.guardHostilityBounty).toBeLessThan(20)
     expect(Number(player.meta.bounty ?? 0)).toBeGreaterThan(15)
+  })
+
+  it('court coups can trigger martial law edicts under instability', () => {
+    const world = generateWorld(9314)
+    const kingdomId = Object.keys(world.kingdoms)[0]
+    const policy = world.kingdoms[kingdomId].policy
+    policy.courtStability = 12
+    policy.nobleInfluence = 84
+    world.turn = 9
+
+    const messages = simulateCourtPolitics(world, new SeededRng(1))
+    expect(messages.some((line) => line.includes('court coup'))).toBe(true)
+    expect(policy.activeEdict).toBe('martial_law')
+    expect(policy.edictExpiresTurn).toBeGreaterThan(world.turn)
+  })
+
+  it('expired court edicts clear automatically', () => {
+    const world = generateWorld(9315)
+    const kingdomId = Object.keys(world.kingdoms)[0]
+    const policy = world.kingdoms[kingdomId].policy
+    policy.activeEdict = 'trade_fair'
+    policy.edictExpiresTurn = 5
+    world.turn = 6
+    const messages = simulateCourtPolitics(world, new SeededRng(2))
+    expect(policy.activeEdict).toBe('none')
+    expect(policy.edictExpiresTurn).toBe(-1)
+    expect(messages.some((line) => line.includes('edict expired'))).toBe(true)
   })
 })
 

@@ -51,6 +51,10 @@ describe('game persistence', () => {
     expect(loadedKingdom?.policy.guardHostilityBounty).toBe(20)
     expect(loadedKingdom?.policy.bountyDecayPerTick).toBe(2)
     expect(loadedKingdom?.policy.pardonGoldFactor).toBe(1)
+    expect(loadedKingdom?.policy.courtStability).toBe(55)
+    expect(loadedKingdom?.policy.nobleInfluence).toBe(45)
+    expect(loadedKingdom?.policy.activeEdict).toBe('none')
+    expect(loadedKingdom?.policy.edictExpiresTurn).toBe(-1)
   })
 })
 

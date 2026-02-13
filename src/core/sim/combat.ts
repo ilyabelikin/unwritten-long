@@ -1,0 +1,131 @@
+import { keyFor, neighborsOf, parseKey } from '../hex'
+import { SeededRng } from '../random'
+import type { Character, World } from '../types'
+
+const attackPower = (actor: Character): number => {
+  const combat = actor.skills.combat ?? 1
+  const roleBonus =
+    actor.role === 'guard'
+      ? 3
+      : actor.role === 'monster'
+        ? 4
+        : actor.role === 'bandit'
+          ? 2
+          : actor.role === 'player'
+            ? 2
+            : actor.role === 'wildlife' && (actor.species === 'bear' || actor.species === 'wolf')
+              ? 2
+              : 0
+  return 2 + combat * 0.7 + roleBonus
+}
+
+const nearestCityTile = (world: World, fromTileId: string): string | undefined => {
+  const from = parseKey(fromTileId)
+  let best: { tileId: string; distance: number } | undefined
+  for (const settlement of Object.values(world.settlements)) {
+    if (settlement.tier !== 'city') continue
+    const center = settlement.tiles[0]
+    const target = parseKey(center)
+    const dist = Math.abs(from.q - target.q) + Math.abs(from.r - target.r)
+    if (!best || dist < best.distance) {
+      best = { tileId: center, distance: dist }
+    }
+  }
+  return best?.tileId
+}
+
+const resolveDefeat = (world: World, target: Character, attacker: Character, rng: SeededRng): string => {
+  if (target.hp > 0) return ''
+  if (target.role === 'wildlife' || target.role === 'monster' || target.role === 'bandit') {
+    target.alive = false
+    return `${attacker.name} killed ${target.name}.`
+  }
+
+  const miracle = rng.chance(0.4)
+  if (miracle) {
+    const rescueTile = nearestCityTile(world, target.location)
+    target.hp = Math.ceil(target.maxHp * 0.45)
+    if (rescueTile) target.location = rescueTile
+    target.history.push(`Miraculously survived defeat by ${attacker.name}.`)
+    return `${target.name} survived and awoke in a nearby city.`
+  }
+
+  if (target.id === world.playerId) {
+    target.hp = Math.ceil(target.maxHp * 0.5)
+    const rescueTile = nearestCityTile(world, target.location)
+    if (rescueTile) target.location = rescueTile
+    target.history.push('Fate spared them from death and sent them to a city.')
+    return 'You should have died, but fate dragged you to a nearby city.'
+  }
+
+  target.alive = false
+  target.history.push(`Died in battle against ${attacker.name}.`)
+  return `${target.name} died in battle.`
+}
+
+export const performAttack = (
+  world: World,
+  attackerId: string,
+  targetId: string,
+  rng: SeededRng,
+): string[] => {
+  const attacker = world.characters[attackerId]
+  const target = world.characters[targetId]
+  if (!attacker || !target || !attacker.alive || !target.alive) return []
+  if (attacker.location !== target.location) return []
+
+  const messages: string[] = []
+  const damage = Math.max(1, Math.round(attackPower(attacker) + rng.int(0, 3) - (target.skills.combat ?? 1) * 0.2))
+  target.hp -= damage
+  messages.push(`${attacker.name} hit ${target.name} for ${damage}.`)
+  if (attacker.role === 'player' && target.role !== 'monster' && target.role !== 'wildlife') {
+    attacker.reputation -= 1
+  }
+  const defeatMessage = resolveDefeat(world, target, attacker, rng)
+  if (defeatMessage) messages.push(defeatMessage)
+  return messages
+}
+
+export const isAggressiveTowards = (actor: Character, target: Character, world: World): boolean => {
+  if (!actor.alive || !target.alive || actor.id === target.id) return false
+  if (actor.location !== target.location) return false
+  if (actor.role === 'guard' && target.id === world.playerId) {
+    return target.reputation < -20
+  }
+  if (actor.role === 'bandit') return target.role === 'trader' || target.id === world.playerId
+  if (actor.role === 'monster') return target.species !== actor.species
+  if (actor.role === 'wildlife') {
+    if (actor.species === 'wolf' || actor.species === 'bear' || actor.species === 'boar') {
+      return target.species !== actor.species
+    }
+  }
+  return false
+}
+
+export const healInCities = (world: World): void => {
+  for (const char of Object.values(world.characters)) {
+    if (!char.alive) continue
+    const tile = world.tiles[char.location]
+    if (!tile?.settlementId) continue
+    const settlement = world.settlements[tile.settlementId]
+    if (!settlement || settlement.tier !== 'city') continue
+    char.hp = char.maxHp
+  }
+}
+
+export const cityGuardSpawnTiles = (world: World): string[] => {
+  const tiles: string[] = []
+  for (const settlement of Object.values(world.settlements)) {
+    if (settlement.tier !== 'city') continue
+    tiles.push(...settlement.tiles)
+    for (const tileId of settlement.tiles) {
+      const tile = world.tiles[tileId]
+      for (const n of neighborsOf(tile.coord)) {
+        const neighborId = keyFor(n.q, n.r)
+        if (world.tiles[neighborId] && world.tiles[neighborId].terrain !== 'sea') tiles.push(neighborId)
+      }
+    }
+  }
+  return [...new Set(tiles)]
+}
+

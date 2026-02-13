@@ -1,0 +1,82 @@
+.hud {
+  width: 360px;
+  min-width: 320px;
+  max-height: 100vh;
+  overflow: auto;
+  background: #161d25;
+  color: #dce6f0;
+  border-left: 1px solid #2a3845;
+  padding: 0.8rem;
+  box-sizing: border-box;
+}
+
+.hud h1 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.4rem;
+}
+
+.panel {
+  background: #1d2630;
+  border: 1px solid #2f3f4d;
+  border-radius: 8px;
+  margin-bottom: 0.7rem;
+  padding: 0.65rem;
+  font-size: 0.85rem;
+}
+
+.compact span,
+.compact strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.subpanel {
+  border: 1px dashed #3a4d61;
+  border-radius: 6px;
+  padding: 0.35rem;
+  background: #1b222b;
+}
+
+.subpanel h3 {
+  margin: 0 0 0.35rem;
+}
+
+.panel h2 {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+}
+
+.panel p {
+  margin: 0.26rem 0;
+  line-height: 1.25;
+}
+
+.button-row {
+  display: flex;
+  gap: 0.4rem;
+}
+
+button {
+  border: 1px solid #445669;
+  background: #2c3c4c;
+  color: #f6f8fb;
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #384d61;
+}
+
+.warning {
+  border-color: #9f6d2b;
+  background: #3a2a18;
+}
+
+.log ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.24rem;
+}

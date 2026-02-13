@@ -154,6 +154,44 @@ describe('diplomacy simulation', () => {
     expect(deEscalated).toBe(true)
   })
 
+  it('active corridors nudge legal policy toward leniency', () => {
+    const world = generateWorld(9910)
+    const [left, right] = Object.keys(world.kingdoms)
+    world.turn = 60
+    for (const pair of Object.keys(world.kingdomRelations)) {
+      world.kingdomRelations[pair] = 14
+      world.kingdomConflicts[pair] = false
+    }
+    setRelation(world, left, right, 24)
+    setWarState(world, left, right, false)
+    world.kingdoms[left].policy.peaceDividendPartnerKingdomId = right
+    world.kingdoms[right].policy.peaceDividendPartnerKingdomId = left
+    world.kingdoms[left].policy.peaceDividendUntilTurn = world.turn + 14
+    world.kingdoms[right].policy.peaceDividendUntilTurn = world.turn + 14
+    world.kingdoms[left].policy.peaceDividendIntensity = 30
+    world.kingdoms[right].policy.peaceDividendIntensity = 30
+
+    const leftSettlements = Object.values(world.settlements).filter((settlement) => settlement.kingdomId === left)
+    for (const settlement of leftSettlements) {
+      settlement.meta.prosperity = 58
+      settlement.meta.foodStress = 10
+    }
+
+    const policy = world.kingdoms[left].policy
+    policy.tradeStance = 'protectionist'
+    policy.guardHostilityReputation = -14
+    policy.guardHostilityBounty = 15
+    policy.bountyDecayPerTick = 2
+    policy.pardonGoldFactor = 1.2
+
+    simulateDiplomacyTurn(world, new SeededRng(77))
+    expect(policy.tradeStance).not.toBe('protectionist')
+    expect(policy.guardHostilityReputation).toBeLessThanOrEqual(-15)
+    expect(policy.guardHostilityBounty).toBeGreaterThanOrEqual(16)
+    expect(policy.bountyDecayPerTick).toBeGreaterThanOrEqual(3)
+    expect(policy.pardonGoldFactor).toBeLessThan(1.2)
+  })
+
   it('active peace dividends improve bilateral relations and treasury flow', () => {
     const world = generateWorld(9906)
     const [left, right] = Object.keys(world.kingdoms)

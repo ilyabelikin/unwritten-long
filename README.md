@@ -88,6 +88,7 @@ Then open the printed localhost URL.
 - Losing a peace-corridor caravan can sharply damage or even collapse a fragile dividend détente.
 - Corridor-active cities apply softer guard/legal pressure (more bounty decay and reduced pardon burden).
 - Active corridors also reduce cross-border caravan tariffs and route risk, improving sustained inter-kingdom trade.
+- Sustained corridors gradually nudge kingdom enforcement policy toward less protectionist, less punitive settings.
 - **Militia action**: spend tools to raise temporary local guards during dangerous periods.
 
 ## Rules implemented

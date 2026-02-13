@@ -68,6 +68,7 @@ const adjustKingdomPolicies = (world: World, rng: SeededRng, messages: string[])
   for (const kingdom of Object.values(world.kingdoms)) {
     const prosperity = averageSettlementProsperity(world, kingdom.id)
     const policy = kingdom.policy
+    const corridorIntensity = bilateralPeaceCorridorIntensityForKingdom(world, kingdom.id)
     const beforeTax = policy.taxRate
     const beforePatrol = policy.patrolFocus
     const beforeStance = policy.tradeStance
@@ -86,10 +87,16 @@ const adjustKingdomPolicies = (world: World, rng: SeededRng, messages: string[])
     const hostileNeighbors = Object.keys(world.kingdoms)
       .filter((id) => id !== kingdom.id)
       .filter((otherId) => relationBetween(world, kingdom.id, otherId) <= -35).length
-    const targetPatrol = clamp(0.35 + hostileNeighbors * 0.18 + (100 - prosperity) * 0.003, 0.2, 1)
+    const targetPatrol = clamp(
+      0.35 + hostileNeighbors * 0.18 + (100 - prosperity) * 0.003 - (corridorIntensity >= 18 ? 0.08 : 0),
+      0.2,
+      1,
+    )
     policy.patrolFocus = Math.round(targetPatrol * 100) / 100
-    if (hostileNeighbors >= 2 && policy.tradeStance !== 'protectionist') {
+    if (hostileNeighbors >= 2 && corridorIntensity < 22 && policy.tradeStance !== 'protectionist') {
       policy.tradeStance = 'protectionist'
+    } else if (hostileNeighbors >= 2 && corridorIntensity >= 22 && policy.tradeStance === 'protectionist') {
+      policy.tradeStance = 'balanced'
     } else if (hostileNeighbors === 0 && prosperity > 55) {
       policy.tradeStance = 'open'
     } else if (policy.tradeStance === 'protectionist' && hostileNeighbors === 1 && prosperity > 45) {
@@ -106,6 +113,15 @@ const adjustKingdomPolicies = (world: World, rng: SeededRng, messages: string[])
       policy.guardHostilityBounty = clamp(Math.round(policy.guardHostilityBounty + 1), 10, 34)
       policy.bountyDecayPerTick = clamp(Math.round(policy.bountyDecayPerTick + 1), 1, 5)
       policy.pardonGoldFactor = clamp(policy.pardonGoldFactor - 0.03, 0.6, 1.8)
+    }
+    if (corridorIntensity >= 18) {
+      policy.guardHostilityReputation = clamp(Math.round(policy.guardHostilityReputation - 1), -30, -6)
+      policy.guardHostilityBounty = clamp(Math.round(policy.guardHostilityBounty + 1), 10, 34)
+      policy.bountyDecayPerTick = clamp(Math.round(policy.bountyDecayPerTick + 1), 1, 5)
+      policy.pardonGoldFactor = clamp(policy.pardonGoldFactor - (corridorIntensity >= 34 ? 0.03 : 0.02), 0.6, 1.8)
+      if (policy.tradeStance === 'protectionist' && rng.chance(0.65)) {
+        policy.tradeStance = 'balanced'
+      }
     }
 
     const changed =
@@ -141,6 +157,12 @@ const bilateralPeaceDividendIntensity = (world: World, left: string, right: stri
   if (rightPolicy.peaceDividendPartnerKingdomId !== left) return 0
   if (leftPolicy.peaceDividendUntilTurn < world.turn || rightPolicy.peaceDividendUntilTurn < world.turn) return 0
   return clamp(Math.min(leftPolicy.peaceDividendIntensity, rightPolicy.peaceDividendIntensity), 0, 100)
+}
+
+const bilateralPeaceCorridorIntensityForKingdom = (world: World, kingdomId: string): number => {
+  const partnerId = world.kingdoms[kingdomId]?.policy.peaceDividendPartnerKingdomId
+  if (!partnerId || partnerId === 'none') return 0
+  return bilateralPeaceDividendIntensity(world, kingdomId, partnerId)
 }
 
 const applyPeaceDividendEffects = (world: World, messages: string[]): void => {

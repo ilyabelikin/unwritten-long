@@ -5,6 +5,7 @@ import { setRelation, setWarState } from './diplomacy'
 import {
   simulateJusticeEvents,
   simulateCourtPolitics,
+  spawnWorldEvents,
   tryCorruptionCrackdown,
   tryDeclareManhunt,
   tryDemobilizeWarbandForPair,
@@ -257,6 +258,55 @@ describe('world events under conflict', () => {
     }
 
     expect(corridorAmnesty).toBeGreaterThan(baselineAmnesty)
+  })
+
+  it('peace corridors divert road-bandit spawns toward exposed routes', () => {
+    const base = generateWorld(9326)
+    const [left, right] = Object.keys(base.kingdoms)
+    base.turn = 5
+    for (const key of Object.keys(base.kingdomConflicts)) {
+      base.kingdomConflicts[key] = false
+    }
+    setRelation(base, left, right, 22)
+
+    let baselineCorridorRoadBandits = 0
+    let corridorCorridorRoadBandits = 0
+    let corridorSpawned = 0
+    for (let seed = 1; seed <= 80; seed += 1) {
+      const rngSeed = seed * 7919 + 911
+
+      const normalWorld = structuredClone(base)
+      spawnWorldEvents(normalWorld, new SeededRng(rngSeed))
+      const normalBandit = Object.values(normalWorld.characters).find(
+        (character) => character.id.startsWith(`bandit-${normalWorld.turn}-`) && character.meta.hostile === true,
+      )
+      if (normalBandit) {
+        const tile = normalWorld.tiles[normalBandit.location]
+        const kingdomId = tile.settlementId ? normalWorld.settlements[tile.settlementId]?.kingdomId : tile.kingdomId
+        if (kingdomId === left || kingdomId === right) baselineCorridorRoadBandits += 1
+      }
+
+      const corridorWorld = structuredClone(base)
+      corridorWorld.kingdoms[left].policy.peaceDividendPartnerKingdomId = right
+      corridorWorld.kingdoms[right].policy.peaceDividendPartnerKingdomId = left
+      corridorWorld.kingdoms[left].policy.peaceDividendUntilTurn = corridorWorld.turn + 12
+      corridorWorld.kingdoms[right].policy.peaceDividendUntilTurn = corridorWorld.turn + 12
+      corridorWorld.kingdoms[left].policy.peaceDividendIntensity = 34
+      corridorWorld.kingdoms[right].policy.peaceDividendIntensity = 34
+      spawnWorldEvents(corridorWorld, new SeededRng(rngSeed))
+      const corridorBandit = Object.values(corridorWorld.characters).find(
+        (character) => character.id.startsWith(`bandit-${corridorWorld.turn}-`) && character.meta.hostile === true,
+      )
+      if (corridorBandit) {
+        corridorSpawned += 1
+        const tile = corridorWorld.tiles[corridorBandit.location]
+        const kingdomId = tile.settlementId ? corridorWorld.settlements[tile.settlementId]?.kingdomId : tile.kingdomId
+        if (kingdomId === left || kingdomId === right) corridorCorridorRoadBandits += 1
+      }
+    }
+
+    expect(corridorSpawned).toBeGreaterThan(0)
+    expect(corridorCorridorRoadBandits).toBeLessThanOrEqual(baselineCorridorRoadBandits)
   })
 
   it('can declare local manhunts against high-bounty players', () => {

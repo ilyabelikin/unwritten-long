@@ -53,6 +53,15 @@ const randomLandTileBy = (
   return candidates[rng.int(0, candidates.length - 1)]
 }
 
+const corridorIntensityForTile = (world: World, tileId: string): number => {
+  const tile = world.tiles[tileId]
+  if (!tile) return 0
+  const settlementKingdomId = tile.settlementId ? world.settlements[tile.settlementId]?.kingdomId : undefined
+  const kingdomId = settlementKingdomId ?? tile.kingdomId
+  if (!kingdomId) return 0
+  return activePeaceCorridorForKingdom(world, kingdomId)?.intensity ?? 0
+}
+
 const activePeaceDividendIntensityForKingdom = (world: World, kingdomId: string): number => {
   const policy = world.kingdoms[kingdomId]?.policy
   if (!policy) return 0
@@ -870,14 +879,25 @@ export const spawnWorldEvents = (world: World, rng: SeededRng): string[] => {
 
   const chanceScale = world.season === 'winter' ? 0.85 : 1
 
-  if (rng.chance(0.17 * chanceScale)) {
-    const tileId = randomLandTileBy(world, (id) => world.tiles[id].road, rng)
+  const roadTiles = world.tileOrder.filter((id) => world.tiles[id].road && world.tiles[id].terrain !== 'sea')
+  const stabilizedRoads = roadTiles.filter((tileId) => corridorIntensityForTile(world, tileId) >= 18)
+  const exposedRoads = roadTiles.filter((tileId) => corridorIntensityForTile(world, tileId) < 18)
+  const stabilizedShare = roadTiles.length > 0 ? stabilizedRoads.length / roadTiles.length : 0
+  const roadBanditChance = 0.17 * chanceScale * clamp(1 - stabilizedShare * 0.5, 0.45, 1)
+
+  if (rng.chance(roadBanditChance)) {
+    const candidateRoads = exposedRoads.length > 0 ? exposedRoads : roadTiles
+    const tileId = candidateRoads.length > 0 ? candidateRoads[rng.int(0, candidateRoads.length - 1)] : undefined
     if (tileId) {
       const id = `bandit-${world.turn}-${rng.int(100, 999)}`
       const bandit = createSimpleCharacter(id, 'bandit', 'human', tileId, `Bandit ${rng.int(10, 99)}`)
       bandit.meta.hostile = true
       spawn(bandit)
-      messages.push('Bandits were spotted on a major road.')
+      if (exposedRoads.length > 0 && stabilizedRoads.length > 0 && exposedRoads.includes(tileId)) {
+        messages.push('Bandits shifted raids toward roads outside stabilized peace corridors.')
+      } else {
+        messages.push('Bandits were spotted on a major road.')
+      }
     }
   }
 

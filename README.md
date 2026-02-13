@@ -24,6 +24,7 @@ A browser-based turn-based hex adventure simulation with:
 - Justice event chain added: kingdoms can trigger manhunts, amnesty decrees, and corruption crackdowns.
 - Court politics layer added: noble influence and court stability can trigger coups and emergency edicts.
 - Court factions (Merchant Bloc, War Hawks, Reformers) now compete to steer kingdom edicts and priorities.
+- Contracts now carry court directives from the ruling faction and adjust rewards/objectives accordingly.
 
 ## Tech
 
@@ -64,6 +65,7 @@ Then open the printed localhost URL.
 - **Justice alerts** can temporarily change local law pressure (manhunts/amnesty/crackdowns).
 - **Court edicts** (Martial Law, Tax Relief, Trade Fair) are shown per kingdom with expiry turns.
 - **Court factions/tension** are visible per kingdom and can trigger influence shifts over time.
+- **Contract cards** now display issuing court directive/faction flavor where applicable.
 - **Militia action**: spend tools to raise temporary local guards during dangerous periods.
 
 ## Rules implemented
@@ -78,6 +80,7 @@ Then open the printed localhost URL.
 - During severe bounty spikes, kingdoms may dispatch temporary marshals under active manhunts.
 - Court coups can impose martial law, while stable courts may issue relief/trade edicts that reshape policy effects.
 - Faction dominance now shapes which edicts are likely (war hawk crackdowns, merchant trade fairs, reform relief).
+- Faction-backed contracts now bias incentives (security bounties, commerce goods, or civic aid rewards).
 - HP ≤ 0 resolves to death/survival rules; city visit restores HP to full.
 - Bears mostly hibernate in winter, with rare aggressive wake-ups.
 - Seasonal crop cycle and food stress drive migration/growth/decline pressure in settlements.

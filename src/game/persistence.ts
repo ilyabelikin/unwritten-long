@@ -61,6 +61,22 @@ const ensureKingdomPoliciesAndConflicts = (world: World): void => {
   }
 }
 
+const ensureContracts = (world: World): void => {
+  if (!world.contracts) world.contracts = {}
+  for (const contract of Object.values(world.contracts)) {
+    contract.meta = contract.meta ?? {}
+    contract.progress = Number.isFinite(contract.progress) ? contract.progress : 0
+    contract.requiredAmount = Number.isFinite(contract.requiredAmount) ? contract.requiredAmount : 1
+    contract.rewardReputation = Number.isFinite(contract.rewardReputation) ? contract.rewardReputation : 2
+    contract.rewardBountyReduction = Number.isFinite(contract.rewardBountyReduction)
+      ? contract.rewardBountyReduction
+      : 0
+    contract.rewardGoods = contract.rewardGoods ?? {}
+    contract.expiresTurn = Number.isFinite(contract.expiresTurn) ? contract.expiresTurn : world.turn + 20
+    contract.status = contract.status ?? 'available'
+  }
+}
+
 export const serializeWorld = (world: World): string =>
   JSON.stringify({
     version: SAVE_VERSION,
@@ -80,6 +96,7 @@ export const deserializeWorld = (payload: string): { world?: World; timestamp?: 
     }
     ensureKingdomRelations(world)
     ensureKingdomPoliciesAndConflicts(world)
+    ensureContracts(world)
     world.messages = world.messages ?? []
     return {
       world,

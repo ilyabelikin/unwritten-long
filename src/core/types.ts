@@ -12,6 +12,8 @@ export type Resource =
 
 export type SettlementTier = 'hamlet' | 'village' | 'town' | 'city'
 export type CropStage = 'dormant' | 'sown' | 'growing' | 'ripe'
+export type ContractKind = 'deliver_food' | 'hunt_bandits'
+export type ContractStatus = 'available' | 'active' | 'completed' | 'expired'
 export type BuildingType =
   | 'village_home'
   | 'fisher_home'
@@ -137,6 +139,24 @@ export interface Kingdom {
   }
 }
 
+export interface Contract {
+  id: string
+  settlementId: string
+  issuerKingdomId: string
+  kind: ContractKind
+  status: ContractStatus
+  assignedCharacterId?: string
+  good?: Good
+  requiredAmount: number
+  progress: number
+  rewardReputation: number
+  rewardBountyReduction: number
+  rewardGoods: Partial<Record<Good, number>>
+  acceptedTurn?: number
+  expiresTurn: number
+  meta: Record<string, unknown>
+}
+
 export interface World {
   seed: number
   width: number
@@ -148,6 +168,7 @@ export interface World {
   kingdoms: Record<string, Kingdom>
   kingdomRelations: Record<string, number>
   kingdomConflicts: Record<string, boolean>
+  contracts: Record<string, Contract>
   playerId: string
   turn: number
   season: Season

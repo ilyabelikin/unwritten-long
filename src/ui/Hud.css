@@ -154,3 +154,15 @@ button:hover {
 .policy-card strong {
   font-size: 0.8rem;
 }
+
+.contract-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.contract-card {
+  border: 1px dashed #50667d;
+  border-radius: 7px;
+  padding: 0.35rem 0.45rem;
+  background: #1b2430;
+}

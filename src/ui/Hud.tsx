@@ -1,6 +1,7 @@
 import { estimateGoodPrice } from '../core/sim/economy'
 import { SPECIES_LABEL } from '../core/data/content'
 import { relationBetween } from '../core/sim/diplomacy'
+import type { Contract } from '../core/types'
 import type { Good, World } from '../core/types'
 import type { MapOverlayMode } from '../game/store'
 import './Hud.css'
@@ -16,6 +17,8 @@ interface HudProps {
   onDonateSupplies: () => void
   onSponsorTreaty: () => void
   onRequestPardon: () => void
+  onAcceptContract: (contractId: string) => void
+  onProgressContract: () => void
   onSaveGame: () => void
   onLoadGame: () => void
   onConfirmRobbery: (confirm: boolean) => void
@@ -40,6 +43,8 @@ export const Hud = ({
   onDonateSupplies,
   onSponsorTreaty,
   onRequestPardon,
+  onAcceptContract,
+  onProgressContract,
   onSaveGame,
   onLoadGame,
   onConfirmRobbery,
@@ -51,6 +56,14 @@ export const Hud = ({
   const playerSettlement =
     world.tiles[player.location]?.settlementId ? world.settlements[world.tiles[player.location].settlementId!] : undefined
   const canUseCivicActions = Boolean(playerSettlement)
+  const activeContract = Object.values(world.contracts).find(
+    (contract) => contract.status === 'active' && contract.assignedCharacterId === world.playerId,
+  )
+  const availableContracts: Contract[] = playerSettlement
+    ? Object.values(world.contracts)
+        .filter((contract) => contract.status === 'available' && contract.settlementId === playerSettlement.id)
+        .slice(0, 3)
+    : []
   const kingdomIds = Object.keys(world.kingdoms)
   const activeConflicts = Object.keys(world.kingdomConflicts).filter((key) => world.kingdomConflicts[key])
 
@@ -112,6 +125,48 @@ export const Hud = ({
           </>
         ) : (
           <p>Move into a settlement to donate supplies or sponsor talks.</p>
+        )}
+      </section>
+
+      <section className="panel">
+        <h2>Contract Board</h2>
+        {playerSettlement ? (
+          <>
+            <p>Issuer: {playerSettlement.name}</p>
+            {activeContract ? (
+              <div className="subpanel">
+                <p>
+                  Active: {activeContract.kind} · {activeContract.progress}/{activeContract.requiredAmount}
+                </p>
+                <p>
+                  Reward: +{activeContract.rewardReputation} rep · -{activeContract.rewardBountyReduction} bounty
+                </p>
+                <button onClick={onProgressContract}>Report / Deliver Contract Progress</button>
+              </div>
+            ) : availableContracts.length > 0 ? (
+              <div className="contract-list">
+                {availableContracts.map((contract) => (
+                  <div key={contract.id} className="contract-card">
+                    <p>
+                      {contract.kind === 'deliver_food'
+                        ? `Deliver ${contract.requiredAmount} ${contract.good}`
+                        : `Hunt ${contract.requiredAmount} bandit group`}
+                    </p>
+                    <p>
+                      Reward: +{contract.rewardReputation} rep · {Object.entries(contract.rewardGoods)
+                        .map(([good, qty]) => `${qty} ${good}`)
+                        .join(', ') || 'civic favor'}
+                    </p>
+                    <button onClick={() => onAcceptContract(contract.id)}>Accept Contract</button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p>No open contracts here this turn.</p>
+            )}
+          </>
+        ) : (
+          <p>Move into a settlement to view local contracts.</p>
         )}
       </section>
 

@@ -16,6 +16,8 @@ const App = () => {
   const donateSupplies = useGameStore((state) => state.donateSupplies)
   const sponsorTreaty = useGameStore((state) => state.sponsorTreaty)
   const requestPardon = useGameStore((state) => state.requestPardon)
+  const acceptContract = useGameStore((state) => state.acceptContract)
+  const progressContract = useGameStore((state) => state.progressContract)
   const saveGame = useGameStore((state) => state.saveGame)
   const loadGame = useGameStore((state) => state.loadGame)
   const confirmRobbery = useGameStore((state) => state.confirmRobbery)
@@ -41,6 +43,8 @@ const App = () => {
         onDonateSupplies={donateSupplies}
         onSponsorTreaty={sponsorTreaty}
         onRequestPardon={requestPardon}
+        onAcceptContract={acceptContract}
+        onProgressContract={progressContract}
         onSaveGame={saveGame}
         onLoadGame={loadGame}
         onConfirmRobbery={confirmRobbery}

@@ -26,6 +26,8 @@ describe('game persistence', () => {
     // @ts-expect-error legacy payload intentionally omits field
     delete world.kingdomConflicts
     // @ts-expect-error legacy payload intentionally omits field
+    delete world.contracts
+    // @ts-expect-error legacy payload intentionally omits field
     delete kingdom.policy
     const serialized = serializeWorld(world)
     const loaded = deserializeWorld(serialized)
@@ -36,6 +38,7 @@ describe('game persistence', () => {
     expect(loadedSettlement?.meta.prosperity).toBe(40)
     expect(Object.keys(loaded.world?.kingdomRelations ?? {})).not.toHaveLength(0)
     expect(Object.keys(loaded.world?.kingdomConflicts ?? {})).not.toHaveLength(0)
+    expect(loaded.world?.contracts).toBeDefined()
     expect(loadedKingdom?.policy.tradeStance).toBe('balanced')
   })
 })

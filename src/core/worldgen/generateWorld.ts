@@ -3,6 +3,7 @@ import { BUILDING_TEMPLATES, FLAWS, HUMAN_FIRST_NAMES, KINGDOM_NAMES, SETTLEMENT
 import { keyFor, neighborsOf } from '../hex'
 import { shortestPath } from '../pathing'
 import { SeededRng, hashNoise } from '../random'
+import { seedInitialContracts } from '../sim/contracts'
 import { buildInitialConflicts, buildInitialRelations } from '../sim/diplomacy'
 import type { BuildingInstance, BuildingType, Character, Good, Kingdom, Resource, Season, Settlement, SettlementTier, Species, Tile, World } from '../types'
 import { createGoodRecord } from '../utils'
@@ -484,6 +485,7 @@ export const generateWorld = (seed = Date.now() % 100000): World => {
     kingdoms,
     kingdomRelations,
     kingdomConflicts,
+    contracts: {},
     characters: {},
     playerId: '',
     turn: 0,
@@ -601,6 +603,7 @@ export const generateWorld = (seed = Date.now() % 100000): World => {
   }
 
   worldSkeleton.characters = characters
+  seedInitialContracts(worldSkeleton, rng)
   const time = determineSeason(0)
   worldSkeleton.season = time.season
   worldSkeleton.seasonTurn = time.seasonTurn

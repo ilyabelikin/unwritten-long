@@ -38,6 +38,9 @@ const resolveDefeat = (world: World, target: Character, attacker: Character, rng
   if (target.hp > 0) return ''
   if (target.role === 'wildlife' || target.role === 'monster' || target.role === 'bandit') {
     target.alive = false
+    if (attacker.id === world.playerId && target.role === 'bandit') {
+      attacker.meta.banditsDefeated = Number(attacker.meta.banditsDefeated ?? 0) + 1
+    }
     return `${attacker.name} killed ${target.name}.`
   }
 

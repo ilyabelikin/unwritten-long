@@ -50,6 +50,7 @@ const createMiniWorld = (): World => ({
   kingdoms: {},
   kingdomRelations: {},
   kingdomConflicts: {},
+  contracts: {},
   playerId: 'player',
   turn: 0,
   season: 'spring',

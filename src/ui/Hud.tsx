@@ -13,6 +13,8 @@ interface HudProps {
   onNewWorld: () => void
   onEndTurn: () => void
   onSetMapOverlay: (overlay: MapOverlayMode) => void
+  onDonateSupplies: () => void
+  onSponsorTreaty: () => void
   onSaveGame: () => void
   onLoadGame: () => void
   onConfirmRobbery: (confirm: boolean) => void
@@ -34,6 +36,8 @@ export const Hud = ({
   onNewWorld,
   onEndTurn,
   onSetMapOverlay,
+  onDonateSupplies,
+  onSponsorTreaty,
   onSaveGame,
   onLoadGame,
   onConfirmRobbery,
@@ -42,6 +46,9 @@ export const Hud = ({
   const selectedTile = world.selectedTileId ? world.tiles[world.selectedTileId] : undefined
   const selectedCharacter = world.selectedCharacterId ? world.characters[world.selectedCharacterId] : undefined
   const selectedSettlement = selectedTile?.settlementId ? world.settlements[selectedTile.settlementId] : undefined
+  const playerSettlement =
+    world.tiles[player.location]?.settlementId ? world.settlements[world.tiles[player.location].settlementId!] : undefined
+  const canUseCivicActions = Boolean(playerSettlement)
   const kingdomIds = Object.keys(world.kingdoms)
   const activeConflicts = Object.keys(world.kingdomConflicts).filter((key) => world.kingdomConflicts[key])
 
@@ -89,6 +96,21 @@ export const Hud = ({
           </div>
         </section>
       )}
+
+      <section className="panel">
+        <h2>Civic Actions</h2>
+        {canUseCivicActions ? (
+          <>
+            <p>You are in {playerSettlement?.name}. Support locals or influence diplomacy.</p>
+            <div className="button-row">
+              <button onClick={onDonateSupplies}>Donate Supplies (1 AP)</button>
+              <button onClick={onSponsorTreaty}>Sponsor Treaty (2 AP)</button>
+            </div>
+          </>
+        ) : (
+          <p>Move into a settlement to donate supplies or sponsor talks.</p>
+        )}
+      </section>
 
       <section className="panel">
         <h2>Selected Tile</h2>

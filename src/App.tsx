@@ -13,6 +13,8 @@ const App = () => {
   const clickCharacter = useGameStore((state) => state.clickCharacter)
   const endTurn = useGameStore((state) => state.forceEndTurn)
   const setMapOverlay = useGameStore((state) => state.setMapOverlay)
+  const donateSupplies = useGameStore((state) => state.donateSupplies)
+  const sponsorTreaty = useGameStore((state) => state.sponsorTreaty)
   const saveGame = useGameStore((state) => state.saveGame)
   const loadGame = useGameStore((state) => state.loadGame)
   const confirmRobbery = useGameStore((state) => state.confirmRobbery)
@@ -35,6 +37,8 @@ const App = () => {
         onNewWorld={() => regenerate()}
         onEndTurn={endTurn}
         onSetMapOverlay={setMapOverlay}
+        onDonateSupplies={donateSupplies}
+        onSponsorTreaty={sponsorTreaty}
         onSaveGame={saveGame}
         onLoadGame={loadGame}
         onConfirmRobbery={confirmRobbery}

@@ -4,7 +4,7 @@ import { SeededRng } from '../random'
 import type { Character, World } from '../types'
 import { clamp } from '../utils'
 import { performAttack, healInCities, isAggressiveTowards, cityGuardSpawnTiles } from './combat'
-import { simulateDiplomacyTurn } from './diplomacy'
+import { isAtWar, relationBetween, setRelation, setWarState, simulateDiplomacyTurn } from './diplomacy'
 import { simulateEconomyTurn, estimateGoodPrice } from './economy'
 import { spawnWorldEvents } from './events'
 import { simulateWildlifeEcology } from './wildlife'
@@ -18,6 +18,20 @@ const addPlayerBounty = (world: World, amount: number): void => {
   const player = world.characters[world.playerId]
   if (!player) return
   player.meta.bounty = clamp(Number(player.meta.bounty ?? 0) + amount, 0, 9999)
+}
+
+const reducePlayerBounty = (world: World, amount: number): void => {
+  const player = world.characters[world.playerId]
+  if (!player) return
+  player.meta.bounty = Math.max(0, Number(player.meta.bounty ?? 0) - amount)
+}
+
+const currentSettlementForPlayer = (world: World) => {
+  const player = world.characters[world.playerId]
+  if (!player?.alive) return undefined
+  const tile = world.tiles[player.location]
+  if (!tile?.settlementId) return undefined
+  return world.settlements[tile.settlementId]
 }
 
 export const determineSeasonFromTurn = (turn: number): { season: World['season']; seasonTurn: number } => {
@@ -388,6 +402,81 @@ export const playerRob = (world: World, traderId: string, confirm = false): stri
   addPlayerBounty(world, 28)
   world.pendingRobberyCharacterId = undefined
   const messages = [`You robbed ${trader.name}. Bounty: ${getPlayerBounty(world)}. City guards may retaliate.`]
+  world.messages = [...messages, ...world.messages].slice(0, 120)
+  return messages
+}
+
+export const playerDonateSupplies = (world: World): string[] => {
+  const player = world.characters[world.playerId]
+  const settlement = currentSettlementForPlayer(world)
+  if (!player || !settlement) return ['You must stand in a settlement to donate supplies.']
+  if (player.ap < 1) return ['Not enough AP to donate supplies.']
+
+  const foodGoods: ('grain' | 'fish' | 'vegetables' | 'meat')[] = ['grain', 'fish', 'vegetables', 'meat']
+  const donated: string[] = []
+  let totalValue = 0
+  for (const good of foodGoods) {
+    const available = Math.floor(player.inventory[good] ?? 0)
+    if (available <= 0) continue
+    const amount = Math.min(available, 2)
+    player.inventory[good] = available - amount
+    settlement.stockpile[good] += amount
+    donated.push(`${amount} ${good}`)
+    totalValue += amount
+  }
+
+  if (totalValue <= 0) return ['You have no spare food supplies to donate.']
+
+  player.ap -= 1
+  player.reputation += Math.ceil(totalValue * 1.6)
+  reducePlayerBounty(world, 6 + totalValue)
+  settlement.meta.foodStress = clamp(settlement.meta.foodStress - totalValue * 2.8, 0, 100)
+  settlement.meta.prosperity = clamp(settlement.meta.prosperity + totalValue * 1.5, 0, 100)
+  const messages = [
+    `You donated ${donated.join(', ')} to ${settlement.name}. Reputation and local morale improved.`,
+  ]
+  world.messages = [...messages, ...world.messages].slice(0, 120)
+  return messages
+}
+
+export const playerSponsorTreaty = (world: World): string[] => {
+  const player = world.characters[world.playerId]
+  const settlement = currentSettlementForPlayer(world)
+  if (!player || !settlement) return ['You must be in a settlement to sponsor diplomacy.']
+  if (player.ap < 2) return ['Not enough AP to sponsor a treaty.']
+
+  const localKingdomId = settlement.kingdomId
+  const foreignCandidates = Object.keys(world.kingdoms).filter((id) => id !== localKingdomId)
+  if (foreignCandidates.length === 0) return ['No foreign kingdoms available for diplomacy.']
+
+  const targetKingdomId = foreignCandidates
+    .map((id) => ({ id, relation: relationBetween(world, localKingdomId, id) }))
+    .sort((a, b) => a.relation - b.relation)[0].id
+
+  const gold = Math.floor(player.inventory.gold_ore ?? 0)
+  const tools = Math.floor(player.inventory.tools ?? 0)
+  if (gold < 1 && tools < 2) {
+    return ['You need at least 1 gold ore or 2 tools to sponsor diplomatic talks.']
+  }
+
+  if (gold >= 1) {
+    player.inventory.gold_ore = gold - 1
+  } else {
+    player.inventory.tools = tools - 2
+  }
+
+  player.ap -= 2
+  const current = relationBetween(world, localKingdomId, targetKingdomId)
+  const improved = current + 14
+  setRelation(world, localKingdomId, targetKingdomId, improved)
+  if (isAtWar(world, localKingdomId, targetKingdomId) && improved >= -8) {
+    setWarState(world, localKingdomId, targetKingdomId, false)
+  }
+  player.reputation += 3
+  reducePlayerBounty(world, 4)
+  const messages = [
+    `You sponsored talks between ${world.kingdoms[localKingdomId].name} and ${world.kingdoms[targetKingdomId].name}.`,
+  ]
   world.messages = [...messages, ...world.messages].slice(0, 120)
   return messages
 }

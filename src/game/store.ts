@@ -1,7 +1,14 @@
 import { create } from 'zustand'
 import { generateWorld } from '../core/worldgen/generateWorld'
 import type { World } from '../core/types'
-import { advanceWorldTurn, moveCharacter, playerAttackOnTile, playerRob } from '../core/sim/turn'
+import {
+  advanceWorldTurn,
+  moveCharacter,
+  playerAttackOnTile,
+  playerDonateSupplies,
+  playerRob,
+  playerSponsorTreaty,
+} from '../core/sim/turn'
 import { loadFromLocalStorage, saveToLocalStorage } from './persistence'
 
 export type MapOverlayMode = 'terrain' | 'kingdom' | 'economy' | 'danger'
@@ -18,6 +25,8 @@ interface GameState {
   confirmRobbery: (confirm: boolean) => void
   forceEndTurn: () => void
   setMapOverlay: (overlay: MapOverlayMode) => void
+  donateSupplies: () => void
+  sponsorTreaty: () => void
   saveGame: () => void
   loadGame: () => void
 }
@@ -120,6 +129,20 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   setMapOverlay: (overlay) => set({ mapOverlay: overlay }),
+
+  donateSupplies: () => {
+    const world = structuredClone(get().world)
+    const messages = playerDonateSupplies(world)
+    resolvePostActionTurn(world, messages)
+    set({ ...commitWorld(world), actionFeed: messages.length > 0 ? messages : get().actionFeed })
+  },
+
+  sponsorTreaty: () => {
+    const world = structuredClone(get().world)
+    const messages = playerSponsorTreaty(world)
+    resolvePostActionTurn(world, messages)
+    set({ ...commitWorld(world), actionFeed: messages.length > 0 ? messages : get().actionFeed })
+  },
 
   saveGame: () => {
     const world = structuredClone(get().world)

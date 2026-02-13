@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { generateWorld } from '../worldgen/generateWorld'
-import { advanceWorldTurn, determineSeasonFromTurn, movementCost, playerRob } from './turn'
+import {
+  advanceWorldTurn,
+  determineSeasonFromTurn,
+  movementCost,
+  playerDonateSupplies,
+  playerRob,
+  playerSponsorTreaty,
+} from './turn'
+import { setRelation, setWarState } from './diplomacy'
 
 describe('turn simulation', () => {
   it('advances season correctly every 60 turns', () => {
@@ -102,6 +110,49 @@ describe('turn simulation', () => {
     const second = playerRob(world, 'test-trader', true)
     expect(second[0]).toContain('Bounty')
     expect(Number(player.meta.bounty ?? 0)).toBeGreaterThan(0)
+  })
+
+  it('donating supplies improves settlement morale and lowers bounty', () => {
+    const world = generateWorld(9092)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const settlement = world.settlements[settlementId]
+    player.inventory.grain = 3
+    player.inventory.fish = 1
+    player.meta.bounty = 22
+    const stressBefore = settlement.meta.foodStress
+    const repBefore = player.reputation
+
+    const messages = playerDonateSupplies(world)
+    expect(messages[0]).toContain('donated')
+    expect(settlement.meta.foodStress).toBeLessThanOrEqual(stressBefore)
+    expect(player.reputation).toBeGreaterThan(repBefore)
+    expect(Number(player.meta.bounty ?? 0)).toBeLessThan(22)
+  })
+
+  it('sponsoring treaty can improve relations and end war', () => {
+    const world = generateWorld(9093)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const localKingdom = world.settlements[settlementId].kingdomId
+    const foreign = Object.keys(world.kingdoms).find((id) => id !== localKingdom)
+    expect(foreign).toBeDefined()
+    if (!foreign) return
+
+    setRelation(world, localKingdom, foreign, -12)
+    setWarState(world, localKingdom, foreign, true)
+    player.inventory.gold_ore = 2
+    const before = world.kingdomRelations[[localKingdom, foreign].sort().join('|')]
+
+    const messages = playerSponsorTreaty(world)
+    const after = world.kingdomRelations[[localKingdom, foreign].sort().join('|')]
+    expect(messages[0]).toContain('sponsored talks')
+    expect(after).toBeGreaterThan(before)
+    expect(world.kingdomConflicts[[localKingdom, foreign].sort().join('|')]).toBe(false)
   })
 })
 

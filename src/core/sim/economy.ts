@@ -583,7 +583,7 @@ const spawnCaravan = (
       const tariff = clamp(tariffBase + policyTariffOffset, 0, 0.35)
       const sourceCenter = other.tiles[0]
       const homeCenter = settlement.tiles[0]
-      const tradePath = safestPath(world, homeCenter, sourceCenter, dangerByTile)
+      const tradePath = safestPath(world, sourceCenter, homeCenter, dangerByTile)
       if (tradePath.length < 2) continue
       const routeDanger = tradePath.reduce((total, tileId) => total + (dangerByTile[tileId] ?? 0), 0)
       const riskCost = routeDanger * 0.9
@@ -602,7 +602,7 @@ const spawnCaravan = (
   const sourceCoord = parseKey(sourceCenter)
   const distance = Math.abs(homeCoord.q - sourceCoord.q) + Math.abs(homeCoord.r - sourceCoord.r)
   if (distance > 28) return
-  const travelPath = bestDeal.path.length > 1 ? bestDeal.path : shortestPath(world, homeCenter, sourceCenter)
+  const travelPath = bestDeal.path.length > 1 ? bestDeal.path : shortestPath(world, sourceCenter, homeCenter)
   if (travelPath.length < 2) return
 
   const buyCost = bestDeal.buyPrice * bestDeal.qty * (1 + bestDeal.tariff)
@@ -629,9 +629,9 @@ const spawnCaravan = (
     traits: ['pragmatic'],
     flaws: ['risk-averse'],
     reputation: 0,
-    location: homeCenter,
+    location: sourceCenter,
     homeSettlementId: settlement.id,
-    targetTileId: sourceCenter,
+    targetTileId: homeCenter,
     alive: true,
     inventory: {
       [bestDeal.good]: bestDeal.qty,
@@ -650,7 +650,7 @@ const spawnCaravan = (
   world.characters[id] = trader
   const tariffPercent = Math.round(bestDeal.tariff * 100)
   messages.push(
-    `${settlement.name} launched caravan for ${bestDeal.good}${tariffPercent > 0 ? ` (tariff ${tariffPercent}%)` : ''}.`,
+    `${settlement.name} launched caravan from ${bestDeal.source.name} with ${bestDeal.good}${tariffPercent > 0 ? ` (tariff ${tariffPercent}%)` : ''}.`,
   )
 }
 

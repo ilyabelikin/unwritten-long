@@ -129,5 +129,50 @@ describe('economy simulation', () => {
     expect(settlement.needs.grain).toBeGreaterThanOrEqual(summerGrainNeed)
     expect(settlement.needs.wood).toBeGreaterThanOrEqual(summerWoodNeed)
   })
+
+  it('spawns caravans at source settlements for travel back home', () => {
+    const world = generateWorld(2234)
+    const settlements = Object.values(world.settlements)
+    const pair = settlements
+      .flatMap((left, idx) =>
+        settlements.slice(idx + 1).map((right) => {
+          const a = world.tiles[left.tiles[0]].coord
+          const b = world.tiles[right.tiles[0]].coord
+          const distance = Math.abs(a.q - b.q) + Math.abs(a.r - b.r)
+          return { left, right, distance }
+        }),
+      )
+      .sort((a, b) => a.distance - b.distance)[0]
+    expect(pair).toBeDefined()
+    if (!pair) return
+    const home = pair.left
+    const source = pair.right
+
+    home.treasury = 800
+    source.treasury = 800
+    home.stockpile.grain = 0
+    source.stockpile.grain = 80
+    for (const [id, character] of Object.entries(world.characters)) {
+      if (id === world.playerId) continue
+      if (character.role === 'villager' || character.role === 'guard') continue
+      character.alive = false
+    }
+
+    let trader = Object.values(world.characters).find(
+      (character) => character.role === 'trader' && character.meta.homeSettlementId === home.id,
+    )
+    for (let i = 0; i < 16 && !trader; i += 1) {
+      simulateEconomyTurn(world, new SeededRng(62 + i))
+      trader = Object.values(world.characters).find(
+        (character) => character.role === 'trader' && character.meta.homeSettlementId === home.id,
+      )
+    }
+    expect(trader).toBeDefined()
+    if (!trader) return
+    const sourceSettlementId = trader.meta.sourceSettlementId as string
+    expect(sourceSettlementId).toBeDefined()
+    expect(trader.location).toBe(world.settlements[sourceSettlementId].tiles[0])
+    expect(trader.targetTileId).toBe(home.tiles[0])
+  })
 })
 

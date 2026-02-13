@@ -442,6 +442,11 @@ export const generateWorld = (seed = Date.now() % 100000): World => {
       treasury: rng.int(40, 120),
       dream: 'Grow and thrive.',
       needs: randomGoodNeeds(10),
+      meta: {
+        cropStage: 'dormant',
+        foodStress: 0,
+        prosperity: tier === 'city' ? 70 : tier === 'town' ? 56 : tier === 'village' ? 44 : 34,
+      },
     }
     settlementCenters[settlementId] = tile.id
   }
@@ -455,6 +460,7 @@ export const generateWorld = (seed = Date.now() % 100000): World => {
     const population = Math.max(4, Math.min(requestedPopulation, Math.max(4, housing)))
     settlement.needs = randomGoodNeeds(population)
     settlement.treasury += population * 2
+    settlement.meta.prosperity = Math.min(100, settlement.meta.prosperity + population * 0.4)
   }
 
   const kingdoms = assignKingdoms(settlements, settlementCenters, tiles, rng)

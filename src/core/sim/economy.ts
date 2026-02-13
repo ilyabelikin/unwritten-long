@@ -3,19 +3,29 @@ import { BUILDING_COSTS, BUILDING_TEMPLATES } from '../data/content'
 import { keyFor, neighborsOf, parseKey } from '../hex'
 import { shortestPath } from '../pathing'
 import { SeededRng } from '../random'
-import type { BuildingType, Character, Good, Settlement, World } from '../types'
+import type { BuildingType, Character, CropStage, Good, Settlement, World } from '../types'
 import { addGoods, clamp, consumeGoods, createGoodRecord } from '../utils'
 
 const seasonProductionMultiplier = (
+  settlement: Settlement,
+  world: World,
   buildingType: string,
-  season: World['season'],
   good: Good,
 ): number => {
+  const season = world.season
   if (buildingType === 'field' && good === 'grain') {
-    if (season === 'spring') return 0.35
-    if (season === 'summer') return 0.9
-    if (season === 'autumn') return 1.8
-    return 0.15
+    const stage = settlement.meta.cropStage
+    if (stage === 'dormant') return season === 'winter' ? 0.04 : 0.12
+    if (stage === 'sown') return season === 'spring' ? 0.3 : 0.16
+    if (stage === 'growing') return season === 'summer' ? 0.9 : 0.42
+    if (stage === 'ripe') {
+      if (season === 'autumn') {
+        const harvestWindow = world.seasonTurn < 18 ? 2 : world.seasonTurn < 36 ? 1.2 : 0.65
+        return harvestWindow
+      }
+      return 0.25
+    }
+    return 0.25
   }
   if (buildingType === 'fisher_home' && good === 'fish') {
     return season === 'winter' ? 0.65 : 1
@@ -28,6 +38,43 @@ const seasonProductionMultiplier = (
     if (season === 'autumn') return 1.4
   }
   return 1
+}
+
+const updateCropStage = (settlement: Settlement, world: World, messages: string[]): void => {
+  if (world.seasonTurn !== 0) return
+  const stage: CropStage = settlement.meta.cropStage
+  const fieldCount = settlement.buildings.filter((building) => building.type === 'field').length
+  if (fieldCount === 0) {
+    settlement.meta.cropStage = 'dormant'
+    return
+  }
+
+  if (world.season === 'spring') {
+    const seedNeed = Math.max(1, fieldCount)
+    if ((settlement.stockpile.grain ?? 0) >= seedNeed) {
+      settlement.stockpile.grain -= seedNeed
+      settlement.meta.cropStage = 'sown'
+      messages.push(`${settlement.name} sowed spring grain fields.`)
+    } else {
+      settlement.meta.cropStage = 'dormant'
+      messages.push(`${settlement.name} failed to sow all fields due to grain shortage.`)
+    }
+    return
+  }
+
+  if (world.season === 'summer') {
+    settlement.meta.cropStage = stage === 'sown' || stage === 'growing' ? 'growing' : 'sown'
+    return
+  }
+
+  if (world.season === 'autumn') {
+    settlement.meta.cropStage = stage === 'growing' || stage === 'ripe' ? 'ripe' : 'growing'
+    return
+  }
+
+  if (world.season === 'winter') {
+    settlement.meta.cropStage = 'dormant'
+  }
 }
 
 export const estimateGoodPrice = (settlement: Settlement, good: Good, season: World['season']): number => {
@@ -132,7 +179,7 @@ const attemptConstruction = (settlement: Settlement, messages: string[]): void =
   messages.push(`${settlement.name} completed ${BUILDING_TEMPLATES[target].name}.`)
 }
 
-const chooseJobForCitizen = (citizen: Character, settlement: Settlement): string => {
+const chooseJobForCitizen = (citizen: Character, settlement: Settlement, rng: SeededRng): string => {
   let bestScore = -999
   let best = 'idle'
   for (const building of settlement.buildings) {
@@ -157,7 +204,7 @@ const chooseJobForCitizen = (citizen: Character, settlement: Settlement): string
                   ? 'hunting'
                   : 'farming'
       ] ?? 0
-    const score = needScore + skillMatch * 2 + Math.random() * 0.5
+    const score = needScore + skillMatch * 2 + rng.next() * 0.5
     if (score > bestScore) {
       bestScore = score
       best = building.id
@@ -182,6 +229,45 @@ const consumeFood = (settlement: Settlement, population: number, messages: strin
     messages.push(`${settlement.name} has ${hungry} hungry residents this turn.`)
   }
   return hungry
+}
+
+const sendHungryMigrant = (
+  world: World,
+  settlement: Settlement,
+  rng: SeededRng,
+  messages: string[],
+): void => {
+  if (settlement.meta.foodStress < 34) return
+  const originCenter = parseKey(settlement.tiles[0])
+  const targets = Object.values(world.settlements)
+    .filter(
+      (candidate) =>
+        candidate.id !== settlement.id && candidate.meta.prosperity > settlement.meta.prosperity + 8,
+    )
+    .sort((a, b) => {
+      const aCenter = parseKey(a.tiles[0])
+      const bCenter = parseKey(b.tiles[0])
+      const aDist = Math.abs(aCenter.q - originCenter.q) + Math.abs(aCenter.r - originCenter.r)
+      const bDist = Math.abs(bCenter.q - originCenter.q) + Math.abs(bCenter.r - originCenter.r)
+      return aDist - bDist
+    })
+  const target = targets[0]
+  if (!target) return
+
+  const candidates = settlement.populationIds
+    .map((id) => world.characters[id])
+    .filter((character): character is Character => Boolean(character?.alive && character.role === 'villager'))
+  if (candidates.length === 0) return
+  const migrant = candidates[rng.int(0, candidates.length - 1)]
+  migrant.role = 'migrant'
+  migrant.history.push(`Left ${settlement.name} due to hunger pressures.`)
+  migrant.meta = {
+    targetSettlementId: target.id,
+    pathProgress: 0,
+    originSettlementId: settlement.id,
+  }
+  settlement.populationIds = settlement.populationIds.filter((id) => id !== migrant.id)
+  messages.push(`${migrant.name} left ${settlement.name} as a migrant toward ${target.name}.`)
 }
 
 const spawnCaravan = (
@@ -302,6 +388,7 @@ export const simulateEconomyTurn = (world: World, rng: SeededRng): string[] => {
     needs.tools = Math.ceil(population * 0.05)
     needs.gold_ore = Math.ceil(population * 0.01)
     settlement.needs = needs
+    updateCropStage(settlement, world, messages)
 
     const jobAssignments = new Map<string, string[]>()
     for (const building of settlement.buildings) {
@@ -313,7 +400,7 @@ export const simulateEconomyTurn = (world: World, rng: SeededRng): string[] => {
       .filter((c): c is Character => Boolean(c && c.alive && c.role !== 'guard' && c.role !== 'player'))
 
     for (const worker of workers) {
-      const job = chooseJobForCitizen(worker, settlement)
+      const job = chooseJobForCitizen(worker, settlement, rng)
       if (job === 'idle') continue
       const assigned = jobAssignments.get(job)
       const building = settlement.buildings.find((b) => b.id === job)
@@ -361,7 +448,7 @@ export const simulateEconomyTurn = (world: World, rng: SeededRng): string[] => {
 
       const production: Partial<Record<Good, number>> = {}
       for (const [good, amount] of Object.entries(template.produces) as [Good, number][]) {
-        const seasonal = seasonProductionMultiplier(building.type, world.season, good)
+        const seasonal = seasonProductionMultiplier(settlement, world, building.type, good)
         production[good] = amount * Math.max(0.2, workerMultiplier) * seasonal * Math.max(1, building.level)
       }
       addGoods(settlement.stockpile, production)
@@ -386,7 +473,30 @@ export const simulateEconomyTurn = (world: World, rng: SeededRng): string[] => {
         if (!citizen || !citizen.alive) continue
         citizen.hp -= 1
         citizen.history.push(`Suffered hunger in turn ${world.turn}.`)
+        if (citizen.hp <= 0) {
+          citizen.alive = false
+          citizen.history.push('Died from prolonged hunger.')
+        }
       }
+    }
+    const hungryRatio = population > 0 ? hungry / population : 0
+    settlement.meta.foodStress = clamp(
+      settlement.meta.foodStress * 0.82 + hungryRatio * 100 * 0.6,
+      0,
+      100,
+    )
+    if (hungry === 0) {
+      settlement.meta.foodStress = clamp(settlement.meta.foodStress - 1.2, 0, 100)
+    }
+    const reserves = settlement.stockpile.grain + settlement.stockpile.vegetables + settlement.stockpile.fish
+    const economicHealth = (settlement.treasury + reserves * 2) / Math.max(1, population * 8)
+    settlement.meta.prosperity = clamp(
+      settlement.meta.prosperity * 0.85 + economicHealth * 22 - settlement.meta.foodStress * 0.06,
+      0,
+      100,
+    )
+    if (hungryRatio > 0.22 && world.turn % 6 === 0) {
+      sendHungryMigrant(world, settlement, rng, messages)
     }
 
     settlement.dream = evaluateDream(settlement, world)

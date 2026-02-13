@@ -70,6 +70,11 @@ export const Hud = ({ world, actionFeed, onNewWorld, onEndTurn, onConfirmRobbery
                 <p>
                   Pop: {selectedSettlement.populationIds.length} · Treasury: {Math.round(selectedSettlement.treasury)}
                 </p>
+                <p>
+                  Crop cycle: {selectedSettlement.meta.cropStage} · Food stress:{' '}
+                  {selectedSettlement.meta.foodStress.toFixed(1)} · Prosperity:{' '}
+                  {selectedSettlement.meta.prosperity.toFixed(1)}
+                </p>
                 <p>Dream: {selectedSettlement.dream}</p>
                 <p>Stock: {showGoods(selectedSettlement.stockpile)}</p>
                 <p>Needs: {showGoods(selectedSettlement.needs)}</p>

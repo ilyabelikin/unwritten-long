@@ -11,6 +11,7 @@ export type Resource =
   | 'gold_ore'
 
 export type SettlementTier = 'hamlet' | 'village' | 'town' | 'city'
+export type CropStage = 'dormant' | 'sown' | 'growing' | 'ripe'
 export type BuildingType =
   | 'village_home'
   | 'fisher_home'
@@ -117,6 +118,11 @@ export interface Settlement {
   treasury: number
   dream: string
   needs: Record<Good, number>
+  meta: {
+    cropStage: CropStage
+    foodStress: number
+    prosperity: number
+  }
 }
 
 export interface Kingdom {

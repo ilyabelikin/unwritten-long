@@ -26,5 +26,30 @@ describe('economy simulation', () => {
     const abundant = estimateGoodPrice(settlement, 'grain', world.season)
     expect(scarce).toBeGreaterThan(abundant)
   })
+
+  it('advances crop stage across seasonal boundaries', () => {
+    const world = generateWorld(9931)
+    const settlement = Object.values(world.settlements)[0]
+
+    world.season = 'spring'
+    world.seasonTurn = 0
+    simulateEconomyTurn(world, new SeededRng(1))
+    expect(settlement.meta.cropStage).toBe('sown')
+
+    world.season = 'summer'
+    world.seasonTurn = 0
+    simulateEconomyTurn(world, new SeededRng(2))
+    expect(settlement.meta.cropStage).toBe('growing')
+
+    world.season = 'autumn'
+    world.seasonTurn = 0
+    simulateEconomyTurn(world, new SeededRng(3))
+    expect(settlement.meta.cropStage).toBe('ripe')
+
+    world.season = 'winter'
+    world.seasonTurn = 0
+    simulateEconomyTurn(world, new SeededRng(4))
+    expect(settlement.meta.cropStage).toBe('dormant')
+  })
 })
 

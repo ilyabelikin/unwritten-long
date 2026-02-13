@@ -1,9 +1,9 @@
-import { BASE_GOOD_PRICE, FOOD_GOODS } from '../constants'
+import { BASE_GOOD_PRICE, FOOD_GOODS, PLAYER_BASE_AP } from '../constants'
 import { BUILDING_COSTS, BUILDING_TEMPLATES } from '../data/content'
 import { keyFor, neighborsOf, parseKey } from '../hex'
 import { shortestPath } from '../pathing'
 import { SeededRng } from '../random'
-import type { BuildingType, Character, CropStage, Good, Settlement, World } from '../types'
+import type { BuildingType, Character, CropStage, Good, Settlement, SettlementTier, World } from '../types'
 import { addGoods, clamp, consumeGoods, createGoodRecord } from '../utils'
 
 const seasonProductionMultiplier = (
@@ -270,6 +270,201 @@ const sendHungryMigrant = (
   messages.push(`${migrant.name} left ${settlement.name} as a migrant toward ${target.name}.`)
 }
 
+const tierOrder: SettlementTier[] = ['hamlet', 'village', 'town', 'city']
+const tierFootprintTarget: Record<SettlementTier, number> = {
+  hamlet: 1,
+  village: 2,
+  town: 3,
+  city: 5,
+}
+
+const tierPopulationThreshold: Record<SettlementTier, number> = {
+  hamlet: 8,
+  village: 14,
+  town: 22,
+  city: 30,
+}
+
+const housingCapacityForBuilding = (building: Settlement['buildings'][number]): number => {
+  if (building.type === 'village_home' || building.type === 'fisher_home') {
+    return clamp(building.density, 1, 3) * 6
+  }
+  if (building.type === 'city_home') {
+    return clamp(building.density, 3, 9) * 6
+  }
+  return 0
+}
+
+const settlementHousingCapacity = (settlement: Settlement): number =>
+  settlement.buildings.reduce((total, building) => total + housingCapacityForBuilding(building), 0)
+
+const growHousingDensity = (settlement: Settlement, messages: string[]): void => {
+  const homeBuildingTypes: BuildingType[] =
+    settlement.tier === 'city' ? ['city_home'] : ['village_home', 'fisher_home']
+  for (const type of homeBuildingTypes) {
+    const building = settlement.buildings.find((candidate) => candidate.type === type)
+    if (!building) continue
+    const maxDensity = type === 'city_home' ? 9 : 3
+    if (building.density < maxDensity) {
+      building.density += 1
+      messages.push(`${settlement.name} increased ${type.replace('_', ' ')} density to ${building.density}.`)
+      return
+    }
+  }
+
+  const newType: BuildingType =
+    settlement.tier === 'city'
+      ? 'city_home'
+      : settlement.buildings.some((building) => building.type === 'fisher_home')
+        ? 'village_home'
+        : 'village_home'
+  const nextIndex = settlement.buildings.filter((building) => building.type === newType).length + 1
+  settlement.buildings.push({
+    id: `${newType}-${settlement.id}-growth-${nextIndex}`,
+    type: newType,
+    level: 1,
+    density: newType === 'city_home' ? 3 : 1,
+    workforce: BUILDING_TEMPLATES[newType].baseWorkforce,
+  })
+  messages.push(`${settlement.name} built additional ${newType.replace('_', ' ')} housing.`)
+}
+
+const expandSettlementFootprint = (
+  world: World,
+  settlement: Settlement,
+  targetSize: number,
+  messages: string[],
+): void => {
+  if (settlement.tiles.length >= targetSize) return
+
+  const frontier = new Set<string>()
+  for (const tileId of settlement.tiles) {
+    const tile = world.tiles[tileId]
+    for (const neighbor of neighborsOf(tile.coord)) {
+      const neighborId = keyFor(neighbor.q, neighbor.r)
+      if (settlement.tiles.includes(neighborId)) continue
+      const candidate = world.tiles[neighborId]
+      if (!candidate || candidate.terrain === 'sea') continue
+      if (candidate.settlementId && candidate.settlementId !== settlement.id) continue
+      frontier.add(neighborId)
+    }
+  }
+
+  const scored = Array.from(frontier).sort((a, b) => {
+    const tileA = world.tiles[a]
+    const tileB = world.tiles[b]
+    const score = (tile: World['tiles'][string]): number => {
+      let value = 0
+      if (tile.terrain === 'plains' || tile.terrain === 'coast') value += 5
+      if (tile.terrain === 'hills') value += 3
+      if (tile.vegetation === 'deep_forest') value += 2
+      if (tile.resources.includes('stone') || tile.resources.includes('iron_ore')) value += 2
+      if (tile.road) value += 3
+      return value
+    }
+    return score(tileB) - score(tileA)
+  })
+
+  while (settlement.tiles.length < targetSize && scored.length > 0) {
+    const chosen = scored.shift()!
+    settlement.tiles.push(chosen)
+    world.tiles[chosen].settlementId = settlement.id
+    world.tiles[chosen].kingdomId = settlement.kingdomId
+  }
+  if (settlement.tiles.length >= targetSize) {
+    messages.push(`${settlement.name} expanded across nearby hexes.`)
+  }
+}
+
+const nextTier = (tier: SettlementTier): SettlementTier | undefined => {
+  const index = tierOrder.indexOf(tier)
+  return tierOrder[index + 1]
+}
+
+const previousTier = (tier: SettlementTier): SettlementTier | undefined => {
+  const index = tierOrder.indexOf(tier)
+  return tierOrder[index - 1]
+}
+
+const spawnCityGuardIfNeeded = (
+  world: World,
+  settlement: Settlement,
+  rng: SeededRng,
+  messages: string[],
+): void => {
+  const activeGuards = settlement.populationIds.filter((id) => world.characters[id]?.role === 'guard')
+  if (activeGuards.length >= 2) return
+  const missing = 2 - activeGuards.length
+  for (let i = 0; i < missing; i += 1) {
+    const id = `guard-${settlement.id}-${world.turn}-${rng.int(100, 999)}-${i}`
+    world.characters[id] = {
+      id,
+      name: `${settlement.name} Guard`,
+      role: 'guard',
+      species: 'human',
+      hp: 11,
+      maxHp: 11,
+      ap: PLAYER_BASE_AP,
+      maxAp: PLAYER_BASE_AP,
+      age: rng.int(20, 44),
+      skills: { combat: 6, patrol: 5 },
+      history: [`Joined ${settlement.name} city guard.`],
+      traits: ['disciplined'],
+      flaws: ['strict'],
+      reputation: 0,
+      location: settlement.tiles[0],
+      homeSettlementId: settlement.id,
+      alive: true,
+      inventory: {},
+      meta: { guardCityId: settlement.id },
+    }
+    settlement.populationIds.push(id)
+  }
+  messages.push(`${settlement.name} raised additional city guards.`)
+}
+
+const manageSettlementGrowth = (
+  world: World,
+  settlement: Settlement,
+  population: number,
+  rng: SeededRng,
+  messages: string[],
+): void => {
+  const housing = settlementHousingCapacity(settlement)
+  if (population >= housing * 0.9 && settlement.treasury >= 24) {
+    growHousingDensity(settlement, messages)
+    settlement.treasury = Math.max(0, settlement.treasury - 16)
+  }
+
+  const candidateTier = nextTier(settlement.tier)
+  if (candidateTier) {
+    const hasTierPopulation = population >= tierPopulationThreshold[candidateTier]
+    const prosperousEnough = settlement.meta.prosperity >= (candidateTier === 'city' ? 70 : 52)
+    if (hasTierPopulation && prosperousEnough && settlement.treasury >= (candidateTier === 'city' ? 180 : 95)) {
+      settlement.tier = candidateTier
+      expandSettlementFootprint(world, settlement, tierFootprintTarget[candidateTier], messages)
+      settlement.treasury = Math.max(0, settlement.treasury - (candidateTier === 'city' ? 70 : 35))
+      settlement.dream = `Consolidate as a ${candidateTier}.`
+      messages.push(`${settlement.name} grew into a ${candidateTier}.`)
+      if (candidateTier === 'city') {
+        spawnCityGuardIfNeeded(world, settlement, rng, messages)
+      }
+    }
+  }
+
+  const candidateDecline = previousTier(settlement.tier)
+  if (
+    candidateDecline &&
+    settlement.meta.foodStress > 78 &&
+    settlement.meta.prosperity < 18 &&
+    population < tierPopulationThreshold[settlement.tier] * 0.6
+  ) {
+    settlement.tier = candidateDecline
+    settlement.dream = `Recover from hard years and stabilize as a ${candidateDecline}.`
+    messages.push(`${settlement.name} declined to ${candidateDecline} after severe hardship.`)
+  }
+}
+
 const spawnCaravan = (
   world: World,
   settlement: Settlement,
@@ -498,6 +693,7 @@ export const simulateEconomyTurn = (world: World, rng: SeededRng): string[] => {
     if (hungryRatio > 0.22 && world.turn % 6 === 0) {
       sendHungryMigrant(world, settlement, rng, messages)
     }
+    manageSettlementGrowth(world, settlement, population, rng, messages)
 
     settlement.dream = evaluateDream(settlement, world)
     if (world.turn % 8 === 0) attemptConstruction(settlement, messages)

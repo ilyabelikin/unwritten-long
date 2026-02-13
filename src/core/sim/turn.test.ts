@@ -235,5 +235,52 @@ describe('turn simulation', () => {
     expect(player.reputation).toBeGreaterThan(reputationBefore)
     expect(player.inventory.gold_ore ?? 0).toBeLessThan(3)
   })
+
+  it('warband bandits march toward enemy kingdom settlements', () => {
+    const world = generateWorld(9096)
+    const [left, right] = Object.keys(world.kingdoms)
+    setWarState(world, left, right, true)
+    setRelation(world, left, right, -75)
+
+    const leftSettlement = Object.values(world.settlements).find((settlement) => settlement.kingdomId === left)
+    const rightSettlement = Object.values(world.settlements).find((settlement) => settlement.kingdomId === right)
+    expect(leftSettlement).toBeDefined()
+    expect(rightSettlement).toBeDefined()
+    if (!leftSettlement || !rightSettlement) return
+
+    const startTile = leftSettlement.tiles[0]
+    world.characters['warband-march'] = {
+      id: 'warband-march',
+      name: 'Warband',
+      role: 'bandit',
+      species: 'human',
+      hp: 10,
+      maxHp: 10,
+      ap: 4,
+      maxAp: 4,
+      age: 25,
+      skills: { combat: 6 },
+      history: [],
+      traits: ['ruthless'],
+      flaws: ['reckless'],
+      reputation: -40,
+      location: startTile,
+      homeSettlementId: leftSettlement.id,
+      targetTileId: rightSettlement.tiles[0],
+      alive: true,
+      inventory: {},
+      meta: { warPair: [left, right].sort().join('|') },
+    }
+
+    const before =
+      Math.abs(parseKey(startTile).q - parseKey(rightSettlement.tiles[0]).q) +
+      Math.abs(parseKey(startTile).r - parseKey(rightSettlement.tiles[0]).r)
+    advanceWorldTurn(world, 3)
+    const moved = world.characters['warband-march'].location
+    const after =
+      Math.abs(parseKey(moved).q - parseKey(rightSettlement.tiles[0]).q) +
+      Math.abs(parseKey(moved).r - parseKey(rightSettlement.tiles[0]).r)
+    expect(after).toBeLessThanOrEqual(before)
+  })
 })
 

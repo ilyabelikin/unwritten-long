@@ -261,6 +261,46 @@ const processNpcIntent = (world: World, actor: Character, rng: SeededRng, messag
   }
 
   if (actor.role === 'bandit') {
+    const warPair = actor.meta.warPair as string | undefined
+    if (warPair) {
+      const [left, right] = warPair.split('|')
+      const targetKingdom = actor.homeSettlementId
+        ? world.settlements[actor.homeSettlementId]?.kingdomId === left
+          ? right
+          : left
+        : left
+      const enemySettlements = Object.values(world.settlements).filter(
+        (settlement) => settlement.kingdomId === targetKingdom,
+      )
+      if (enemySettlements.length > 0) {
+        const targetTile = enemySettlements
+          .map((settlement) => settlement.tiles[0])
+          .sort(
+            (a, b) =>
+              hexDistance(parseKey(actor.location), parseKey(a)) -
+              hexDistance(parseKey(actor.location), parseKey(b)),
+          )[0]
+        const step = stepToward(world, actor, targetTile)
+        if (step) {
+          const cost = movementCost(world, actor.location, step)
+          if (cost <= actor.ap) {
+            actor.location = step
+            actor.ap -= cost
+          }
+        }
+        const tile = world.tiles[actor.location]
+        if (tile.settlementId) {
+          const settlement = world.settlements[tile.settlementId]
+          if (settlement.kingdomId === targetKingdom && rng.chance(0.35)) {
+            settlement.stockpile.grain = Math.max(0, settlement.stockpile.grain - rng.int(1, 2))
+            settlement.meta.prosperity = clamp(settlement.meta.prosperity - 1.2, 0, 100)
+            messages.push(`Warband raided ${settlement.name}'s supply lines.`)
+          }
+        }
+        return
+      }
+    }
+
     const caravans = Object.values(world.characters).filter(
       (c) => c.alive && (c.role === 'trader' || c.id === world.playerId),
     )

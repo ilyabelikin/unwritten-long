@@ -128,7 +128,35 @@ const evaluateDream = (settlement: Settlement, world: World): string => {
   return 'Accumulate reserves and train workers.'
 }
 
-const canConstruct = (settlement: Settlement, building: BuildingType): boolean => {
+const settlementHasShoreAccess = (world: World, settlement: Settlement): boolean =>
+  settlement.tiles.some((tileId) => {
+    const tile = world.tiles[tileId]
+    if (tile.terrain === 'coast') return true
+    return neighborsOf(tile.coord).some((neighbor) => {
+      const neighborTile = world.tiles[keyFor(neighbor.q, neighbor.r)]
+      return neighborTile?.terrain === 'sea' || neighborTile?.terrain === 'coast'
+    })
+  })
+
+const canConstruct = (world: World, settlement: Settlement, building: BuildingType): boolean => {
+  const template = BUILDING_TEMPLATES[building]
+  if (template.shoreOnly && !settlementHasShoreAccess(world, settlement)) return false
+  if (template.cityOnly && settlement.tier !== 'city') return false
+
+  const existing = settlement.buildings.some((b) => b.type === building)
+  if (existing && !['village_home', 'fisher_home', 'city_home'].includes(building)) {
+    return false
+  }
+
+  const targetExclusions = template.excludes ?? []
+  for (const built of settlement.buildings) {
+    if (targetExclusions.includes(built.type)) return false
+    const reverseExclusions = BUILDING_TEMPLATES[built.type].excludes ?? []
+    if (reverseExclusions.includes(building)) return false
+  }
+
+  if (building === 'city_home' && settlement.tier !== 'city') return false
+  if ((building === 'village_home' || building === 'fisher_home') && settlement.tier === 'city') return false
   if (settlement.buildings.some((b) => b.type === building)) {
     if (building === 'village_home' || building === 'fisher_home' || building === 'city_home') {
       return true
@@ -154,9 +182,23 @@ const buildByDreamText = (dream: string): BuildingType | undefined => {
   return map.find((entry) => dream.toLowerCase().includes(entry[1]))?.[0]
 }
 
-const attemptConstruction = (settlement: Settlement, messages: string[]): void => {
+const attemptConstruction = (world: World, settlement: Settlement, messages: string[]): void => {
   const target = buildByDreamText(settlement.dream)
-  if (!target || !canConstruct(settlement, target)) return
+  if (!target || !canConstruct(world, settlement, target)) return
+
+  const existingHousing = settlement.buildings.find((building) => building.type === target)
+  if (existingHousing && ['village_home', 'fisher_home', 'city_home'].includes(target)) {
+    const maxDensity = target === 'city_home' ? 9 : 3
+    if (existingHousing.density < maxDensity) {
+      const upgradeCost = BUILDING_COSTS[target]
+      if (!consumeGoods(settlement.stockpile, upgradeCost, 0.5)) return
+      if (settlement.treasury < 10) return
+      settlement.treasury -= 10
+      existingHousing.density += 1
+      messages.push(`${settlement.name} increased ${BUILDING_TEMPLATES[target].name} density.`)
+      return
+    }
+  }
 
   const cost = BUILDING_COSTS[target]
   if (!consumeGoods(settlement.stockpile, cost)) return
@@ -696,7 +738,7 @@ export const simulateEconomyTurn = (world: World, rng: SeededRng): string[] => {
     manageSettlementGrowth(world, settlement, population, rng, messages)
 
     settlement.dream = evaluateDream(settlement, world)
-    if (world.turn % 8 === 0) attemptConstruction(settlement, messages)
+    if (world.turn % 8 === 0) attemptConstruction(world, settlement, messages)
     spawnCaravan(world, settlement, rng, messages)
 
     for (const good of Object.keys(settlement.stockpile) as Good[]) {

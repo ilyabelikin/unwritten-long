@@ -58,6 +58,12 @@ const showContractFaction = (value: unknown): string => {
   return 'Unaligned'
 }
 
+const showOppositionType = (value: unknown): string => {
+  if (value === 'war_hawk_sabotage') return 'War Hawk Sabotage'
+  if (value === 'reformer_counterpressure') return 'Reformer Counterpressure'
+  return 'Opposition Incident'
+}
+
 const showCourtStandingRequirements = (
   value: unknown,
   standing: World['playerCourtFavor'],
@@ -265,6 +271,9 @@ export const Hud = ({
                 )}
                 {activeContract.meta.truceIncident === true && <p>Truce summit objective</p>}
                 {activeContract.meta.diplomaticSummit === true && <p>Diplomatic summit objective</p>}
+                {activeContract.meta.diplomaticOpposition === true && (
+                  <p>Peace-opposition incident: {showOppositionType(activeContract.meta.oppositionType)}</p>
+                )}
                 {activeContract.meta.courtPatronage === true && (
                   <p>Patronage tier: {String(activeContract.meta.courtPatronTitle ?? 'Court Patronage')}</p>
                 )}
@@ -366,6 +375,9 @@ export const Hud = ({
                         )}
                         {contract.meta.truceIncident === true && <p>Truce summit objective</p>}
                         {contract.meta.diplomaticSummit === true && <p>Diplomatic summit objective</p>}
+                        {contract.meta.diplomaticOpposition === true && (
+                          <p>Peace-opposition incident: {showOppositionType(contract.meta.oppositionType)}</p>
+                        )}
                         {contract.meta.courtPatronage === true && (
                           <p>Patronage: {String(contract.meta.courtPatronTitle ?? 'Court Patronage')}</p>
                         )}

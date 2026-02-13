@@ -625,6 +625,62 @@ const spawnDiplomaticSummitChain = (
   }
 }
 
+const hasOpenOppositionContractForSummitChain = (world: World, chainId: string): boolean =>
+  Object.values(world.contracts).some(
+    (contract) =>
+      contract.status !== 'completed' &&
+      contract.status !== 'expired' &&
+      contract.meta.diplomaticOpposition === true &&
+      contract.meta.linkedDiplomaticSummitChainId === chainId,
+  )
+
+const createDiplomaticOppositionContract = (
+  world: World,
+  summitContract: Contract,
+  type: 'war_hawk_sabotage' | 'reformer_counterpressure',
+  rng: SeededRng,
+): Contract | undefined => {
+  const issuer = world.settlements[summitContract.settlementId]
+  if (!issuer || contractCountForSettlement(world, issuer.id) >= 4) return undefined
+  const partnerKingdomId = summitContract.meta.diplomaticPartnerKingdomId as string | undefined
+  if (!partnerKingdomId || !world.kingdoms[partnerKingdomId]) return undefined
+  const baseLevel = clamp(Number(summitContract.level ?? 2), 1, 4)
+  const level = clamp(baseLevel + (type === 'war_hawk_sabotage' ? 1 : 0), 1, 4)
+  const chainId = summitContract.meta.diplomaticSummitChainId as string | undefined
+  if (!chainId) return undefined
+
+  let contract: Contract
+  if (type === 'war_hawk_sabotage') {
+    contract = createBanditHuntContract(world, issuer, rng, level)
+    contract.requiredAmount = clamp(contract.requiredAmount + 1, 1, 4)
+    contract.rewardBountyReduction += 2
+    contract.rewardGoods.tools = (contract.rewardGoods.tools ?? 0) + 1
+    contract.meta.courtFaction = 'war_hawks'
+    contract.meta.rivalFaction = 'reformers'
+    contract.meta.courtDirective = 'Suppress Peace Sabotage'
+    contract.meta.minCourtFavor = clamp(8 + level, 8, 28)
+  } else {
+    contract = createFoodDeliveryContract(world, issuer, rng, level)
+    contract.good = 'grain'
+    contract.requiredAmount = clamp(contract.requiredAmount + 2, 6, 20)
+    contract.rewardReputation += 2
+    contract.rewardGoods.vegetables = (contract.rewardGoods.vegetables ?? 0) + 2
+    contract.meta.courtFaction = 'reformers'
+    contract.meta.rivalFaction = 'war_hawks'
+    contract.meta.courtDirective = 'Public Pressure for Peace'
+    contract.meta.minCourtFavor = clamp(7 + level, 7, 26)
+  }
+
+  contract.meta.diplomaticOpposition = true
+  contract.meta.oppositionType = type
+  contract.meta.linkedDiplomaticSummitChainId = chainId
+  contract.meta.diplomaticSummit = true
+  contract.meta.diplomaticPartnerKingdomId = partnerKingdomId
+  contract.meta.diplomaticPairKey = summitContract.meta.diplomaticPairKey
+  contract.meta.minReputation = clamp(Math.max(Number(contract.meta.minReputation ?? 0), 10), 8, 70)
+  return contract
+}
+
 export const seedInitialContracts = (world: World, rng: SeededRng): void => {
   for (const settlement of Object.values(world.settlements)) {
     if (settlement.tier === 'hamlet') continue
@@ -705,6 +761,15 @@ export const simulateContractBoardTurn = (world: World, rng: SeededRng): string[
           }
           messages.push('A diplomatic summit chain collapsed and tensions rose again.')
         }
+        if (contract.meta.diplomaticOpposition === true) {
+          const partner = contract.meta.diplomaticPartnerKingdomId as string | undefined
+          if (partner) {
+            const relation = relationBetween(world, contract.issuerKingdomId, partner)
+            const loss = contract.meta.oppositionType === 'war_hawk_sabotage' ? 6 : 4
+            setRelation(world, contract.issuerKingdomId, partner, relation - loss)
+          }
+          messages.push('Peace-opposition mandate failed, straining summit diplomacy.')
+        }
       }
     }
   }
@@ -738,6 +803,55 @@ export const simulateContractBoardTurn = (world: World, rng: SeededRng): string[
       const partner = issuer === left ? right : left
       const summit = spawnDiplomaticSummitChain(world, issuer, partner, rng)
       if (summit.created && summit.message) messages.push(summit.message)
+    }
+  }
+
+  if (world.turn % 9 === 0) {
+    const summitLeads = new Map<string, Contract>()
+    for (const contract of Object.values(world.contracts)) {
+      if (contract.status !== 'available' && contract.status !== 'active') continue
+      if (contract.meta.diplomaticSummit !== true) continue
+      if (contract.meta.diplomaticOpposition === true) continue
+      const chainId = contract.meta.diplomaticSummitChainId as string | undefined
+      if (!chainId) continue
+      const stage = Number(contract.meta.diplomaticStage ?? 1)
+      const previous = summitLeads.get(chainId)
+      const previousStage = Number(previous?.meta.diplomaticStage ?? 99)
+      if (!previous || stage < previousStage) {
+        summitLeads.set(chainId, contract)
+      }
+    }
+
+    for (const [chainId, summit] of summitLeads.entries()) {
+      if (hasOpenOppositionContractForSummitChain(world, chainId)) continue
+      const partnerKingdomId = summit.meta.diplomaticPartnerKingdomId as string | undefined
+      const issuerPolicy = world.kingdoms[summit.issuerKingdomId]?.policy
+      const partnerPolicy = partnerKingdomId ? world.kingdoms[partnerKingdomId]?.policy : undefined
+      if (!issuerPolicy || !partnerPolicy) continue
+      const hawkPressure =
+        (issuerPolicy.courtFaction === 'war_hawks' ? 2 : 0) +
+        (partnerPolicy.courtFaction === 'war_hawks' ? 2 : 0) +
+        (issuerPolicy.factionTension >= 55 ? 1 : 0) +
+        (partnerPolicy.factionTension >= 55 ? 1 : 0)
+      const reformerPressure =
+        (issuerPolicy.courtFaction === 'reformers' ? 2 : 0) +
+        (partnerPolicy.courtFaction === 'reformers' ? 2 : 0) +
+        (issuerPolicy.factionTension >= 52 ? 1 : 0) +
+        (partnerPolicy.factionTension >= 52 ? 1 : 0)
+      const dominant = Math.max(hawkPressure, reformerPressure)
+      if (dominant <= 0) continue
+      const type: 'war_hawk_sabotage' | 'reformer_counterpressure' =
+        hawkPressure >= reformerPressure ? 'war_hawk_sabotage' : 'reformer_counterpressure'
+      const chance = clamp(0.2 + dominant * 0.07 + Math.abs(hawkPressure - reformerPressure) * 0.05, 0.22, 0.7)
+      if (!rng.chance(chance)) continue
+      const opposition = createDiplomaticOppositionContract(world, summit, type, rng)
+      if (!opposition) continue
+      world.contracts[opposition.id] = opposition
+      messages.push(
+        type === 'war_hawk_sabotage'
+          ? 'War hawks are undermining a diplomatic summit. Counter-mandates posted.'
+          : 'Reformers launched public pressure mandates to protect peace talks.',
+      )
     }
   }
 
@@ -784,6 +898,17 @@ const rewardPlayerForContract = (world: World, contract: Contract): void => {
       addCourtFavor(world, pair[1], truceGain)
     } else if (faction) {
       addCourtFavor(world, faction, truceGain)
+    }
+  } else if (contract.meta.diplomaticOpposition === true) {
+    const partner = contract.meta.diplomaticPartnerKingdomId as string | undefined
+    if (partner) {
+      const relation = relationBetween(world, contract.issuerKingdomId, partner)
+      const gain = contract.meta.oppositionType === 'war_hawk_sabotage' ? 7 : 5
+      setRelation(world, contract.issuerKingdomId, partner, relation + gain)
+      const updated = relationBetween(world, contract.issuerKingdomId, partner)
+      if (isAtWar(world, contract.issuerKingdomId, partner) && updated >= -4) {
+        setWarState(world, contract.issuerKingdomId, partner, false)
+      }
     }
   } else {
     if (faction) {

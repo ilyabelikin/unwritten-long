@@ -923,5 +923,145 @@ describe('contracts system', () => {
     expect(relationAfter).toBeGreaterThan(relationBefore)
     expect(isAtWar(world, issuerKingdomId, partnerKingdomId)).toBe(false)
   })
+
+  it('can spawn peace-opposition mandates during active diplomatic summit chains', () => {
+    const base = generateWorld(9436)
+    const settlement = Object.values(base.settlements)[0]
+    const issuerKingdomId = settlement.kingdomId
+    const partnerKingdomId = Object.keys(base.kingdoms).find((id) => id !== issuerKingdomId)
+    expect(partnerKingdomId).toBeDefined()
+    if (!partnerKingdomId) return
+    base.kingdoms[issuerKingdomId].policy.courtFaction = 'war_hawks'
+    base.kingdoms[partnerKingdomId].policy.courtFaction = 'war_hawks'
+    const pairKey = [issuerKingdomId, partnerKingdomId].sort().join('|')
+
+    let found = false
+    for (let seed = 1; seed <= 32 && !found; seed += 1) {
+      const world = structuredClone(base)
+      world.turn = 9
+      world.contracts = {}
+      const stageId = `dip-open-${seed}`
+      world.contracts[stageId] = {
+        id: stageId,
+        settlementId: settlement.id,
+        issuerKingdomId,
+        kind: 'defend_settlement',
+        level: 3,
+        status: 'available',
+        requiredAmount: 2,
+        progress: 0,
+        rewardReputation: 9,
+        rewardBountyReduction: 7,
+        rewardGoods: { tools: 1 },
+        expiresTurn: world.turn + 20,
+        meta: {
+          diplomaticSummit: true,
+          diplomaticSummitChainId: 'dip-open-chain',
+          diplomaticStage: 1,
+          diplomaticTotalStages: 2,
+          diplomaticPartnerKingdomId: partnerKingdomId,
+          diplomaticPairKey: pairKey,
+          locked: false,
+        },
+      }
+
+      const messages = simulateContractBoardTurn(world, new SeededRng(seed))
+      const opposition = Object.values(world.contracts).find(
+        (contract) =>
+          contract.meta.diplomaticOpposition === true &&
+          contract.meta.linkedDiplomaticSummitChainId === 'dip-open-chain',
+      )
+      if (opposition) {
+        found = true
+        expect(messages.some((line) => line.includes('Counter-mandates') || line.includes('public pressure'))).toBe(true)
+      }
+    }
+
+    expect(found).toBe(true)
+  })
+
+  it('completing opposition mandates can improve relations and end wars', () => {
+    const world = generateWorld(9437)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const settlement = world.settlements[settlementId]
+    const issuerKingdomId = settlement.kingdomId
+    const partnerKingdomId = Object.keys(world.kingdoms).find((id) => id !== issuerKingdomId)
+    expect(partnerKingdomId).toBeDefined()
+    if (!partnerKingdomId) return
+    setRelation(world, issuerKingdomId, partnerKingdomId, -6)
+    setWarState(world, issuerKingdomId, partnerKingdomId, true)
+    const relationBefore = relationBetween(world, issuerKingdomId, partnerKingdomId)
+    const contractId = `opp-complete-${world.turn}`
+    world.contracts[contractId] = {
+      id: contractId,
+      settlementId,
+      issuerKingdomId,
+      kind: 'deliver_food',
+      level: 3,
+      status: 'available',
+      good: 'grain',
+      requiredAmount: 5,
+      progress: 0,
+      rewardReputation: 10,
+      rewardBountyReduction: 7,
+      rewardGoods: { tools: 2 },
+      expiresTurn: world.turn + 20,
+      meta: {
+        diplomaticSummit: true,
+        diplomaticOpposition: true,
+        oppositionType: 'war_hawk_sabotage',
+        linkedDiplomaticSummitChainId: 'dip-opp-chain',
+        diplomaticPartnerKingdomId: partnerKingdomId,
+        diplomaticPairKey: [issuerKingdomId, partnerKingdomId].sort().join('|'),
+      },
+    }
+    player.inventory.grain = 8
+    playerAcceptContract(world, contractId)
+    playerProgressContract(world)
+    const relationAfter = relationBetween(world, issuerKingdomId, partnerKingdomId)
+    expect(relationAfter).toBeGreaterThan(relationBefore)
+    expect(isAtWar(world, issuerKingdomId, partnerKingdomId)).toBe(false)
+  })
+
+  it('failing active opposition mandates worsens summit relations', () => {
+    const world = generateWorld(9438)
+    const settlement = Object.values(world.settlements)[0]
+    const issuerKingdomId = settlement.kingdomId
+    const partnerKingdomId = Object.keys(world.kingdoms).find((id) => id !== issuerKingdomId)
+    expect(partnerKingdomId).toBeDefined()
+    if (!partnerKingdomId) return
+    setRelation(world, issuerKingdomId, partnerKingdomId, -14)
+    const before = relationBetween(world, issuerKingdomId, partnerKingdomId)
+    const contractId = `opp-expire-${world.turn}`
+    world.contracts[contractId] = {
+      id: contractId,
+      settlementId: settlement.id,
+      issuerKingdomId,
+      kind: 'hunt_bandits',
+      level: 2,
+      status: 'active',
+      assignedCharacterId: world.playerId,
+      requiredAmount: 2,
+      progress: 0,
+      rewardReputation: 8,
+      rewardBountyReduction: 6,
+      rewardGoods: { tools: 1 },
+      expiresTurn: world.turn,
+      meta: {
+        diplomaticSummit: true,
+        diplomaticOpposition: true,
+        oppositionType: 'reformer_counterpressure',
+        linkedDiplomaticSummitChainId: 'dip-opp-expire-chain',
+        diplomaticPartnerKingdomId: partnerKingdomId,
+      },
+    }
+    world.turn += 2
+    simulateContractBoardTurn(world, new SeededRng(38))
+    const after = relationBetween(world, issuerKingdomId, partnerKingdomId)
+    expect(after).toBeLessThan(before)
+  })
 })
 

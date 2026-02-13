@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { axialToPixel, polygonPoints } from '../core/hex'
 import type { Character, Terrain, Tile, World } from '../core/types'
+import type { MapOverlayMode } from '../game/store'
 import './MapView.css'
 
 const HEX_SIZE = 18
@@ -19,6 +20,29 @@ const vegetationOverlay = (tile: Tile): string => {
   if (tile.vegetation === 'sparse_trees') return '#4f7342'
   if (tile.vegetation === 'bush') return '#64854b'
   return 'transparent'
+}
+
+const blendColor = (base: string, tint: string, mix: number): string => {
+  const parse = (hex: string): [number, number, number] => {
+    const normalized = hex.replace('#', '')
+    const value = normalized.length === 3
+      ? normalized
+          .split('')
+          .map((part) => `${part}${part}`)
+          .join('')
+      : normalized
+    const r = Number.parseInt(value.slice(0, 2), 16)
+    const g = Number.parseInt(value.slice(2, 4), 16)
+    const b = Number.parseInt(value.slice(4, 6), 16)
+    return [r, g, b]
+  }
+  const [r1, g1, b1] = parse(base)
+  const [r2, g2, b2] = parse(tint)
+  const ratio = Math.min(1, Math.max(0, mix))
+  const r = Math.round(r1 * (1 - ratio) + r2 * ratio)
+  const g = Math.round(g1 * (1 - ratio) + g2 * ratio)
+  const b = Math.round(b1 * (1 - ratio) + b2 * ratio)
+  return `rgb(${r}, ${g}, ${b})`
 }
 
 const unitIconBy = (character: Character): string => {
@@ -50,11 +74,12 @@ const stackOffsets = (count: number): { x: number; y: number }[] => {
 
 interface MapViewProps {
   world: World
+  overlayMode: MapOverlayMode
   onTileClick: (tileId: string) => void
   onCharacterClick: (characterId: string) => void
 }
 
-export const MapView = ({ world, onTileClick, onCharacterClick }: MapViewProps) => {
+export const MapView = ({ world, overlayMode, onTileClick, onCharacterClick }: MapViewProps) => {
   const { width, height } = useMemo(() => {
     const maxPoint = axialToPixel({ q: world.width, r: world.height }, HEX_SIZE)
     return {
@@ -73,6 +98,56 @@ export const MapView = ({ world, onTileClick, onCharacterClick }: MapViewProps) 
     return map
   }, [world.characters])
 
+  const dangerByTile = useMemo(() => {
+    const scores: Record<string, number> = {}
+    for (const tileId of world.tileOrder) scores[tileId] = 0
+    for (const actor of Object.values(world.characters)) {
+      if (!actor.alive) continue
+      const danger =
+        actor.role === 'bandit'
+          ? 2.6
+          : actor.role === 'monster'
+            ? 3.4
+            : actor.role === 'wildlife' && ['wolf', 'bear', 'boar'].includes(actor.species)
+              ? 1.5
+              : 0
+      if (danger <= 0) continue
+      scores[actor.location] = (scores[actor.location] ?? 0) + danger
+    }
+    return scores
+  }, [world.characters, world.tileOrder])
+
+  const economyByTile = useMemo(() => {
+    const scores: Record<string, number> = {}
+    for (const settlement of Object.values(world.settlements)) {
+      const value = Math.min(100, settlement.meta.prosperity + settlement.treasury / 8)
+      for (const tileId of settlement.tiles) {
+        scores[tileId] = value
+      }
+    }
+    return scores
+  }, [world.settlements])
+
+  const tileFill = (tile: Tile): string => {
+    const base = terrainColor[tile.terrain]
+    if (overlayMode === 'terrain') return base
+    if (overlayMode === 'kingdom') {
+      const kingdomColor = tile.kingdomId ? world.kingdoms[tile.kingdomId]?.color : undefined
+      return kingdomColor ? blendColor(base, kingdomColor, 0.5) : base
+    }
+    if (overlayMode === 'economy') {
+      const score = economyByTile[tile.id] ?? 0
+      const mix = Math.min(1, score / 100)
+      return blendColor(base, '#d8c96f', mix * 0.75)
+    }
+    if (overlayMode === 'danger') {
+      const danger = dangerByTile[tile.id] ?? 0
+      const mix = Math.min(1, danger / 5)
+      return blendColor(base, '#cf4a4a', mix)
+    }
+    return base
+  }
+
   return (
     <div className="map-container">
       <svg className="map-svg" viewBox={`0 0 ${width} ${height}`}>
@@ -87,7 +162,7 @@ export const MapView = ({ world, onTileClick, onCharacterClick }: MapViewProps) 
               <g key={tile.id} onClick={() => onTileClick(tile.id)} className="tile-group">
                 <polygon
                   points={polygonPoints(x, y, HEX_SIZE)}
-                  fill={terrainColor[tile.terrain]}
+                  fill={tileFill(tile)}
                   stroke={selected ? '#f7ea7d' : tile.road ? '#443520' : '#1f2a33'}
                   strokeWidth={selected ? 2.4 : 1}
                 />

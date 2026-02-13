@@ -4,16 +4,20 @@ import type { World } from '../core/types'
 import { advanceWorldTurn, moveCharacter, playerAttackOnTile, playerRob } from '../core/sim/turn'
 import { loadFromLocalStorage, saveToLocalStorage } from './persistence'
 
+export type MapOverlayMode = 'terrain' | 'kingdom' | 'economy' | 'danger'
+
 interface GameState {
   world: World
   actionFeed: string[]
   lastSavedAt?: number
+  mapOverlay: MapOverlayMode
   regenerate: (seed?: number) => void
   selectTile: (tileId: string) => void
   clickTile: (tileId: string) => void
   clickCharacter: (characterId: string) => void
   confirmRobbery: (confirm: boolean) => void
   forceEndTurn: () => void
+  setMapOverlay: (overlay: MapOverlayMode) => void
   saveGame: () => void
   loadGame: () => void
 }
@@ -44,6 +48,7 @@ const commitWorld = (world: World): { world: World; lastSavedAt?: number } => {
 export const useGameStore = create<GameState>((set, get) => ({
   ...bootState(),
   actionFeed: [],
+  mapOverlay: 'terrain',
 
   regenerate: (seed) => {
     const world = generateWorld(seed ?? Date.now() % 999999)
@@ -113,6 +118,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     const messages = resolvePostActionTurn(world, ['You ended your turn.'])
     set({ ...commitWorld(world), actionFeed: messages })
   },
+
+  setMapOverlay: (overlay) => set({ mapOverlay: overlay }),
 
   saveGame: () => {
     const world = structuredClone(get().world)

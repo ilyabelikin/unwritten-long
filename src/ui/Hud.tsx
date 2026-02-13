@@ -1,14 +1,17 @@
 import { estimateGoodPrice } from '../core/sim/economy'
 import { SPECIES_LABEL } from '../core/data/content'
 import type { Good, World } from '../core/types'
+import type { MapOverlayMode } from '../game/store'
 import './Hud.css'
 
 interface HudProps {
   world: World
   actionFeed: string[]
   lastSavedAt?: number
+  mapOverlay: MapOverlayMode
   onNewWorld: () => void
   onEndTurn: () => void
+  onSetMapOverlay: (overlay: MapOverlayMode) => void
   onSaveGame: () => void
   onLoadGame: () => void
   onConfirmRobbery: (confirm: boolean) => void
@@ -26,8 +29,10 @@ export const Hud = ({
   world,
   actionFeed,
   lastSavedAt,
+  mapOverlay,
   onNewWorld,
   onEndTurn,
+  onSetMapOverlay,
   onSaveGame,
   onLoadGame,
   onConfirmRobbery,
@@ -55,6 +60,19 @@ export const Hud = ({
           <button onClick={onNewWorld}>New World</button>
           <button onClick={onSaveGame}>Save</button>
           <button onClick={onLoadGame}>Load</button>
+        </div>
+        <div className="overlay-row">
+          <label htmlFor="overlay-mode">Overlay</label>
+          <select
+            id="overlay-mode"
+            value={mapOverlay}
+            onChange={(event) => onSetMapOverlay(event.target.value as MapOverlayMode)}
+          >
+            <option value="terrain">Terrain</option>
+            <option value="kingdom">Kingdoms</option>
+            <option value="economy">Economy</option>
+            <option value="danger">Danger</option>
+          </select>
         </div>
       </section>
 

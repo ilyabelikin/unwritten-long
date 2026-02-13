@@ -57,6 +57,21 @@
   flex-wrap: wrap;
 }
 
+.overlay-row {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.overlay-row select {
+  border: 1px solid #42576b;
+  background: #243240;
+  color: #f3f6fa;
+  border-radius: 5px;
+  padding: 0.2rem 0.35rem;
+}
+
 button {
   border: 1px solid #445669;
   background: #2c3c4c;

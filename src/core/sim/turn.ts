@@ -10,6 +10,15 @@ import { simulateWildlifeEcology } from './wildlife'
 
 const seasonOrder: World['season'][] = ['spring', 'summer', 'autumn', 'winter']
 
+const getPlayerBounty = (world: World): number =>
+  Number(world.characters[world.playerId]?.meta.bounty ?? 0)
+
+const addPlayerBounty = (world: World, amount: number): void => {
+  const player = world.characters[world.playerId]
+  if (!player) return
+  player.meta.bounty = clamp(Number(player.meta.bounty ?? 0) + amount, 0, 9999)
+}
+
 export const determineSeasonFromTurn = (turn: number): { season: World['season']; seasonTurn: number } => {
   const cycle = turn % (TURNS_PER_SEASON * seasonOrder.length)
   const seasonIndex = Math.floor(cycle / TURNS_PER_SEASON)
@@ -166,7 +175,8 @@ const processNpcIntent = (world: World, actor: Character, rng: SeededRng, messag
 
   if (actor.role === 'guard') {
     const guardTiles = new Set(cityGuardSpawnTiles(world))
-    if (player.reputation < -20) {
+    const criminalHeat = getPlayerBounty(world)
+    if (player.reputation < -20 || criminalHeat >= 20) {
       const nearPlayer = hexDistance(parseKey(actor.location), parseKey(player.location)) <= 4
       const target = nearPlayer ? player.location : actor.location
       const step = stepToward(world, actor, target)
@@ -313,8 +323,14 @@ export const advanceWorldTurn = (world: World, seedOffset = 0): string[] => {
   messages.push(...spawnWorldEvents(world, rng))
   messages.push(...simulateWildlifeEcology(world, rng))
   healInCities(world)
-
   const player = world.characters[world.playerId]
+  if (player?.alive) {
+    const bounty = Number(player.meta.bounty ?? 0)
+    if (bounty > 0 && world.tiles[player.location].settlementId && world.seasonTurn % 5 === 0) {
+      player.meta.bounty = Math.max(0, bounty - 2)
+    }
+  }
+
   if (player?.alive) player.ap = player.maxAp
   world.pendingRobberyCharacterId = undefined
   world.messages = [...messages, ...world.messages].slice(0, 120)
@@ -331,6 +347,10 @@ export const playerAttackOnTile = (world: World, targetId: string): string[] => 
   player.ap -= 2
   const rng = new SeededRng(world.seed + world.turn * 13)
   const messages = performAttack(world, player.id, target.id, rng)
+  if (target.role === 'trader' || target.role === 'villager' || target.role === 'guard') {
+    addPlayerBounty(world, target.role === 'guard' ? 16 : 8)
+    messages.push(`Your bounty rose to ${getPlayerBounty(world)}.`)
+  }
   world.messages = [...messages, ...world.messages].slice(0, 120)
   return messages
 }
@@ -356,8 +376,9 @@ export const playerRob = (world: World, traderId: string, confirm = false): stri
   }
   trader.alive = false
   player.reputation -= 25
+  addPlayerBounty(world, 28)
   world.pendingRobberyCharacterId = undefined
-  const messages = [`You robbed ${trader.name}. City guards may retaliate.`]
+  const messages = [`You robbed ${trader.name}. Bounty: ${getPlayerBounty(world)}. City guards may retaliate.`]
   world.messages = [...messages, ...world.messages].slice(0, 120)
   return messages
 }

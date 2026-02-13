@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { generateWorld } from '../worldgen/generateWorld'
-import { advanceWorldTurn, determineSeasonFromTurn, movementCost } from './turn'
+import { advanceWorldTurn, determineSeasonFromTurn, movementCost, playerRob } from './turn'
 
 describe('turn simulation', () => {
   it('advances season correctly every 60 turns', () => {
@@ -67,6 +67,41 @@ describe('turn simulation', () => {
       expect(Number.isFinite(settlement.stockpile.grain)).toBe(true)
       expect(settlement.stockpile.grain).toBeGreaterThanOrEqual(0)
     }
+  })
+
+  it('applies bounty when robbery is confirmed', () => {
+    const world = generateWorld(9091)
+    const player = world.characters[world.playerId]
+    world.characters['test-trader'] = {
+      id: 'test-trader',
+      name: 'Trade Wagon',
+      role: 'trader',
+      species: 'human',
+      hp: 8,
+      maxHp: 8,
+      ap: 4,
+      maxAp: 4,
+      age: 30,
+      skills: { barter: 5 },
+      history: [],
+      traits: ['pragmatic'],
+      flaws: ['frail'],
+      reputation: 0,
+      location: player.location,
+      homeSettlementId: Object.values(world.settlements)[0].id,
+      targetTileId: undefined,
+      alive: true,
+      inventory: { fish: 4 },
+      meta: { homeSettlementId: Object.values(world.settlements)[0].id },
+    }
+
+    const first = playerRob(world, 'test-trader', false)
+    expect(first[0]).toContain('Confirm?')
+    expect(world.pendingRobberyCharacterId).toBe('test-trader')
+
+    const second = playerRob(world, 'test-trader', true)
+    expect(second[0]).toContain('Bounty')
+    expect(Number(player.meta.bounty ?? 0)).toBeGreaterThan(0)
   })
 })
 

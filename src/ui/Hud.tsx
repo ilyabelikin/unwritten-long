@@ -46,7 +46,8 @@ export const Hud = ({
           Season: {world.season} ({world.seasonTurn}/60)
         </span>
         <span>
-          HP {player.hp}/{player.maxHp} · AP {player.ap}/{player.maxAp} · Reputation {player.reputation}
+          HP {player.hp}/{player.maxHp} · AP {player.ap}/{player.maxAp} · Reputation {player.reputation} · Bounty{' '}
+          {Number(player.meta.bounty ?? 0)}
         </span>
         <span>Save: {lastSavedAt ? new Date(lastSavedAt).toLocaleTimeString() : 'not saved yet'}</span>
         <div className="button-row">

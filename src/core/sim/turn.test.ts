@@ -32,5 +32,21 @@ describe('turn simulation', () => {
     if (!neighborRoad) return
     expect(movementCost(world, roadTile, neighborRoad)).toBe(1)
   })
+
+  it('stays stable over many world turns', () => {
+    const world = generateWorld(9088)
+    for (let i = 0; i < 90; i += 1) {
+      advanceWorldTurn(world, i)
+    }
+    const player = world.characters[world.playerId]
+    expect(world.turn).toBe(90)
+    expect(player.alive).toBe(true)
+    for (const settlement of Object.values(world.settlements)) {
+      expect(Number.isFinite(settlement.treasury)).toBe(true)
+      expect(settlement.treasury).toBeGreaterThanOrEqual(0)
+      expect(Number.isFinite(settlement.stockpile.grain)).toBe(true)
+      expect(settlement.stockpile.grain).toBeGreaterThanOrEqual(0)
+    }
+  })
 })
 

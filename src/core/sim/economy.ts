@@ -392,6 +392,11 @@ export const simulateEconomyTurn = (world: World, rng: SeededRng): string[] => {
     settlement.dream = evaluateDream(settlement, world)
     if (world.turn % 8 === 0) attemptConstruction(settlement, messages)
     spawnCaravan(world, settlement, rng, messages)
+
+    for (const good of Object.keys(settlement.stockpile) as Good[]) {
+      settlement.stockpile[good] = Math.max(0, Math.round(settlement.stockpile[good] * 100) / 100)
+    }
+    settlement.treasury = Math.max(0, Math.round(settlement.treasury * 100) / 100)
   }
 
   return messages

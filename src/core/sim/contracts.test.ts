@@ -208,5 +208,27 @@ describe('contracts system', () => {
     expect(royal).toBeDefined()
     expect(messages.some((line) => line.includes('royal campaign'))).toBe(true)
   })
+
+  it('prefers defense contracts for settlements under siege pressure', () => {
+    const base = generateWorld(9417)
+    const settlement = Object.values(base.settlements).find((candidate) => candidate.tier !== 'hamlet')
+    expect(settlement).toBeDefined()
+    if (!settlement) return
+
+    let foundDefense = false
+    for (let seed = 1; seed <= 24 && !foundDefense; seed += 1) {
+      const world = structuredClone(base)
+      world.turn = 6
+      world.contracts = {}
+      const target = world.settlements[settlement.id]
+      target.meta.siegePressure = 70
+      target.meta.foodStress = 10
+      simulateContractBoardTurn(world, new SeededRng(seed))
+      foundDefense = Object.values(world.contracts).some(
+        (contract) => contract.settlementId === settlement.id && contract.kind === 'defend_settlement',
+      )
+    }
+    expect(foundDefense).toBe(true)
+  })
 })
 

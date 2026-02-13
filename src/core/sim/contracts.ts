@@ -151,14 +151,19 @@ const createContractForSettlement = (
   const pressure =
     settlement.meta.foodStress > 18 ||
     settlement.needs.grain + settlement.needs.fish > settlement.stockpile.grain + settlement.stockpile.fish
+  const underSiege = settlement.meta.siegePressure > 28
   const campaignRank = Math.floor((world.campaignProgress[settlement.kingdomId] ?? 0) / 3)
   const baseLevel = settlement.tier === 'city' ? 3 : settlement.tier === 'town' ? 2 : 1
   const level = clamp(
-    baseLevel + campaignRank + (hasWar ? 1 : 0) + (settlement.meta.foodStress > 35 ? 1 : 0),
+    baseLevel +
+      campaignRank +
+      (hasWar ? 1 : 0) +
+      (underSiege ? 1 : 0) +
+      (settlement.meta.foodStress > 35 ? 1 : 0),
     1,
     4,
   )
-  if (hasWar && settlement.tier !== 'hamlet' && rng.chance(0.5)) {
+  if ((hasWar || underSiege) && settlement.tier !== 'hamlet' && rng.chance(underSiege ? 0.75 : 0.5)) {
     return createDefendContract(world, settlement, rng, level)
   }
   if (settlement.tier === 'city' && rng.chance(0.4)) {

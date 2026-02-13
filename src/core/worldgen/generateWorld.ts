@@ -453,6 +453,7 @@ export const generateWorld = (seed = Date.now() % 100000): World => {
         cropStage: 'dormant',
         foodStress: 0,
         prosperity: tier === 'city' ? 70 : tier === 'town' ? 56 : tier === 'village' ? 44 : 34,
+        siegePressure: 0,
       },
     }
     settlementCenters[settlementId] = tile.id

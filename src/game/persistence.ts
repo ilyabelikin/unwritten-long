@@ -19,6 +19,7 @@ const ensureSettlementMeta = (settlement: Settlement): void => {
   settlement.meta.cropStage = settlement.meta.cropStage ?? 'dormant'
   settlement.meta.foodStress = Number.isFinite(settlement.meta.foodStress) ? settlement.meta.foodStress : 0
   settlement.meta.prosperity = Number.isFinite(settlement.meta.prosperity) ? settlement.meta.prosperity : 40
+  settlement.meta.siegePressure = Number.isFinite(settlement.meta.siegePressure) ? settlement.meta.siegePressure : 0
 }
 
 const ensureKingdomRelations = (world: World): void => {

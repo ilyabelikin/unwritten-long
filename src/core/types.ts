@@ -124,6 +124,7 @@ export interface Settlement {
     cropStage: CropStage
     foodStress: number
     prosperity: number
+    siegePressure: number
   }
 }
 

@@ -38,6 +38,7 @@ describe('game persistence', () => {
     expect(loadedSettlement?.meta.cropStage).toBe('dormant')
     expect(loadedSettlement?.meta.foodStress).toBe(0)
     expect(loadedSettlement?.meta.prosperity).toBe(40)
+    expect(loadedSettlement?.meta.siegePressure).toBe(0)
     expect(Object.keys(loaded.world?.kingdomRelations ?? {})).not.toHaveLength(0)
     expect(Object.keys(loaded.world?.kingdomConflicts ?? {})).not.toHaveLength(0)
     expect(Object.keys(loaded.world?.campaignProgress ?? {})).not.toHaveLength(0)

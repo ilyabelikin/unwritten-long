@@ -236,7 +236,8 @@ export const Hud = ({
                 <p>
                   Crop cycle: {selectedSettlement.meta.cropStage} · Food stress:{' '}
                   {selectedSettlement.meta.foodStress.toFixed(1)} · Prosperity:{' '}
-                  {selectedSettlement.meta.prosperity.toFixed(1)}
+                  {selectedSettlement.meta.prosperity.toFixed(1)} · Siege:{' '}
+                  {selectedSettlement.meta.siegePressure.toFixed(1)}
                 </p>
                 <p>Dream: {selectedSettlement.dream}</p>
                 <p>Stock: {showGoods(selectedSettlement.stockpile)}</p>

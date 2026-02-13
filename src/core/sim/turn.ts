@@ -8,6 +8,7 @@ import { acceptContractForPlayer, progressActiveContractForPlayer, simulateContr
 import { isAtWar, relationBetween, setRelation, setWarState, simulateDiplomacyTurn } from './diplomacy'
 import { simulateEconomyTurn, estimateGoodPrice } from './economy'
 import { spawnWorldEvents } from './events'
+import { simulateSiegePressure } from './siege'
 import { simulateWildlifeEcology } from './wildlife'
 
 const seasonOrder: World['season'][] = ['spring', 'summer', 'autumn', 'winter']
@@ -469,6 +470,7 @@ export const advanceWorldTurn = (world: World, seedOffset = 0): string[] => {
   }
 
   messages.push(...spawnWorldEvents(world, rng))
+  messages.push(...simulateSiegePressure(world, rng))
   messages.push(...simulateWildlifeEcology(world, rng))
 
   for (const actor of Object.values(world.characters)) {

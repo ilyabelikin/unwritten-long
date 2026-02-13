@@ -101,7 +101,7 @@ Then open the printed localhost URL.
 - Completing a full summit chain grants a lasting détente effect (lower tension, higher court stability).
 - Completing diplomatic summit chains can end wars once relations recover past ceasefire thresholds.
 - Failing active peace-opposition responses can drag relations back down and destabilize summit momentum.
-- Active peace dividends improve caravan viability, strengthen prosperity drift, and reduce food stress pressure.
+- Active peace dividends improve caravan viability, strengthen prosperity drift, reduce food stress pressure, and dampen raid/refugee spikes near recovering borders.
 - HP ≤ 0 resolves to death/survival rules; city visit restores HP to full.
 - Bears mostly hibernate in winter, with rare aggressive wake-ups.
 - Seasonal crop cycle and food stress drive migration/growth/decline pressure in settlements.

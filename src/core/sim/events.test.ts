@@ -27,6 +27,29 @@ describe('world events under conflict', () => {
     expect(refugeeSpawned).toBe(true)
   })
 
+  it('peace dividends stabilize migration and can suppress war refugees', () => {
+    const world = generateWorld(9320)
+    const kingdomIds = Object.keys(world.kingdoms)
+    const left = kingdomIds[0]
+    const right = kingdomIds[1]
+    setRelation(world, left, right, -70)
+    setWarState(world, left, right, true)
+    world.turn = 21
+    world.kingdoms[left].policy.peaceDividendUntilTurn = world.turn + 10
+    world.kingdoms[right].policy.peaceDividendUntilTurn = world.turn + 10
+    world.kingdoms[left].policy.peaceDividendPartnerKingdomId = right
+    world.kingdoms[right].policy.peaceDividendPartnerKingdomId = left
+    world.kingdoms[left].policy.peaceDividendIntensity = 26
+    world.kingdoms[right].policy.peaceDividendIntensity = 26
+
+    const message = trySpawnWarRefugee(world, new SeededRng(7), [left, right].sort().join('|'))
+    expect(message).toBeUndefined()
+    const refugeeSpawned = Object.values(world.characters).some(
+      (character) => character.role === 'migrant' && character.meta.refugeeFromConflict === [left, right].sort().join('|'),
+    )
+    expect(refugeeSpawned).toBe(false)
+  })
+
   it('can declare local manhunts against high-bounty players', () => {
     const world = generateWorld(9311)
     const player = world.characters[world.playerId]

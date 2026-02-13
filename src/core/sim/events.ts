@@ -52,8 +52,27 @@ const randomLandTileBy = (
   return candidates[rng.int(0, candidates.length - 1)]
 }
 
+const activePeaceDividendIntensityForKingdom = (world: World, kingdomId: string): number => {
+  const policy = world.kingdoms[kingdomId]?.policy
+  if (!policy) return 0
+  if (policy.peaceDividendUntilTurn < world.turn) return 0
+  return clamp(policy.peaceDividendIntensity, 0, 100)
+}
+
+const peaceDividendIntensityForPair = (world: World, left: string, right: string): number => {
+  const leftPolicy = world.kingdoms[left]?.policy
+  const rightPolicy = world.kingdoms[right]?.policy
+  if (!leftPolicy || !rightPolicy) return 0
+  if (leftPolicy.peaceDividendPartnerKingdomId !== right) return 0
+  if (rightPolicy.peaceDividendPartnerKingdomId !== left) return 0
+  if (leftPolicy.peaceDividendUntilTurn < world.turn || rightPolicy.peaceDividendUntilTurn < world.turn) return 0
+  return clamp(Math.min(leftPolicy.peaceDividendIntensity, rightPolicy.peaceDividendIntensity), 0, 100)
+}
+
 export const trySpawnWarRefugee = (world: World, rng: SeededRng, pair: string): string | undefined => {
   const [left, right] = pair.split('|')
+  const peaceIntensity = peaceDividendIntensityForPair(world, left, right)
+  if (peaceIntensity >= 18) return undefined
   const conflictBorderTiles = world.tileOrder.filter((tileId) => {
     const tile = world.tiles[tileId]
     const tileKingdomId = tile.kingdomId
@@ -802,7 +821,13 @@ export const spawnWorldEvents = (world: World, rng: SeededRng): string[] => {
   }
 
   if (rng.chance(0.11)) {
-    const settlement = Object.values(world.settlements).sort((a, b) => a.populationIds.length - b.populationIds.length)[0]
+    const migratoryPool = Object.values(world.settlements).filter((settlement) => {
+      const peaceIntensity = activePeaceDividendIntensityForKingdom(world, settlement.kingdomId)
+      if (peaceIntensity < 16) return true
+      return settlement.meta.foodStress >= 26
+    })
+    const sourcePool = migratoryPool.length > 0 ? migratoryPool : Object.values(world.settlements)
+    const settlement = sourcePool.sort((a, b) => a.populationIds.length - b.populationIds.length)[0]
     const target = Object.values(world.settlements).sort((a, b) => b.populationIds.length - a.populationIds.length)[0]
     if (settlement && target && settlement.id !== target.id) {
       const id = `migrant-${world.turn}-${rng.int(100, 999)}`
@@ -814,8 +839,10 @@ export const spawnWorldEvents = (world: World, rng: SeededRng): string[] => {
     }
   }
 
-  if (rng.chance(world.season === 'winter' ? 0.08 : 0.03)) {
-    const city = Object.values(world.settlements).find((s) => s.tier === 'city')
+  const city = Object.values(world.settlements).find((s) => s.tier === 'city')
+  const cityPeaceIntensity = city ? activePeaceDividendIntensityForKingdom(world, city.kingdomId) : 0
+  const raidChance = (world.season === 'winter' ? 0.08 : 0.03) * clamp(1 - cityPeaceIntensity * 0.02, 0.3, 1)
+  if (rng.chance(raidChance)) {
     if (city) {
       const ring = city.tiles.flatMap((tileId) =>
         neighborsOf(world.tiles[tileId].coord).map((n) => keyFor(n.q, n.r)),
@@ -832,10 +859,12 @@ export const spawnWorldEvents = (world: World, rng: SeededRng): string[] => {
   }
 
   const warPairs = Object.keys(world.kingdomConflicts).filter((pair) => world.kingdomConflicts[pair])
-  if (warPairs.length > 0 && world.turn % 9 === 0 && rng.chance(0.65)) {
+  if (warPairs.length > 0 && world.turn % 9 === 0) {
     const selectedPair = warPairs[rng.int(0, warPairs.length - 1)]
     const [leftKingdom, rightKingdom] = selectedPair.split('|')
-    if (isAtWar(world, leftKingdom, rightKingdom)) {
+    const peaceIntensity = peaceDividendIntensityForPair(world, leftKingdom, rightKingdom)
+    const warbandChance = 0.65 * clamp(1 - peaceIntensity * 0.025, 0.2, 1)
+    if (rng.chance(warbandChance) && isAtWar(world, leftKingdom, rightKingdom)) {
       const borderTiles = world.tileOrder.filter((tileId) => {
         const tile = world.tiles[tileId]
         if (tile.kingdomId !== leftKingdom && tile.kingdomId !== rightKingdom) return false

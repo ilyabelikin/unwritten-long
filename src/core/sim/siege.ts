@@ -3,6 +3,14 @@ import { SeededRng } from '../random'
 import type { Character, World } from '../types'
 import { clamp } from '../utils'
 
+const peaceDividendShieldForSettlement = (world: World, settlementId: string): number => {
+  const settlement = world.settlements[settlementId]
+  const policy = world.kingdoms[settlement.kingdomId]?.policy
+  if (!policy) return 0
+  if (policy.peaceDividendUntilTurn < world.turn) return 0
+  return clamp(policy.peaceDividendIntensity / 100, 0, 0.5)
+}
+
 const hostileScore = (actor: Character): number => {
   if (!actor.alive) return 0
   if (actor.role === 'monster') return 2.2
@@ -43,14 +51,16 @@ export const simulateSiegePressure = (world: World, rng: SeededRng): string[] =>
     }
 
     const before = settlement.meta.siegePressure
-    const delta = hostile * 1.8 - 1.2
+    const peaceShield = peaceDividendShieldForSettlement(world, settlement.id)
+    const pressureScale = 1 - peaceShield
+    const delta = hostile * 1.8 * pressureScale - 1.2
     settlement.meta.siegePressure = clamp(settlement.meta.siegePressure + delta, 0, 100)
     if (settlement.meta.siegePressure > 0 && hostile > 0) {
-      const lootLoss = Math.min(3, Math.ceil(hostile / 2))
+      const lootLoss = Math.min(3, Math.ceil((hostile / 2) * pressureScale))
       settlement.stockpile.grain = Math.max(0, settlement.stockpile.grain - lootLoss)
-      settlement.stockpile.fish = Math.max(0, settlement.stockpile.fish - rng.int(0, 1))
-      settlement.meta.foodStress = clamp(settlement.meta.foodStress + hostile * 0.8, 0, 100)
-      settlement.meta.prosperity = clamp(settlement.meta.prosperity - hostile * 0.4, 0, 100)
+      settlement.stockpile.fish = Math.max(0, settlement.stockpile.fish - Math.round(rng.int(0, 1) * pressureScale))
+      settlement.meta.foodStress = clamp(settlement.meta.foodStress + hostile * 0.8 * pressureScale, 0, 100)
+      settlement.meta.prosperity = clamp(settlement.meta.prosperity - hostile * 0.4 * pressureScale, 0, 100)
     }
 
     if (before < 35 && settlement.meta.siegePressure >= 35) {

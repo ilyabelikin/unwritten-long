@@ -63,6 +63,73 @@ const resolveDefeat = (world: World, target: Character, attacker: Character, rng
   return `${target.name} died in battle.`
 }
 
+const inventoryValue = (character: Character): number =>
+  Object.values(character.inventory).reduce((total, qty) => total + (qty ?? 0), 0)
+
+const plunderDefeatedTarget = (
+  world: World,
+  attacker: Character,
+  target: Character,
+  rng: SeededRng,
+  wasDefeated: boolean,
+): string[] => {
+  if (!wasDefeated) return []
+  const messages: string[] = []
+
+  if (target.id === world.playerId && (attacker.role === 'bandit' || attacker.role === 'monster')) {
+    const stolenRate = attacker.role === 'bandit' ? 0.55 : 0.35
+    const stolen: [string, number][] = []
+    for (const [good, qty] of Object.entries(target.inventory)) {
+      if (!qty || qty <= 0) continue
+      const take = Math.min(qty, Math.ceil(qty * stolenRate))
+      if (take <= 0) continue
+      target.inventory[good as keyof typeof target.inventory] = Math.max(0, qty - take)
+      stolen.push([good, take])
+      if (attacker.role === 'bandit') {
+        attacker.inventory[good as keyof typeof attacker.inventory] =
+          (attacker.inventory[good as keyof typeof attacker.inventory] ?? 0) + take
+      }
+    }
+    if (stolen.length > 0) {
+      messages.push(
+        `${attacker.name} stole ${stolen.map(([good, qty]) => `${qty} ${good}`).join(', ')} from the player.`,
+      )
+    }
+    return messages
+  }
+
+  if (!['bandit', 'player', 'monster'].includes(attacker.role)) return messages
+  const lootEntries = Object.entries(target.inventory).filter(([, qty]) => (qty ?? 0) > 0)
+  if (lootEntries.length === 0) return messages
+
+  for (const [good, qty] of lootEntries) {
+    if (!qty || qty <= 0) continue
+    attacker.inventory[good as keyof typeof attacker.inventory] =
+      (attacker.inventory[good as keyof typeof attacker.inventory] ?? 0) + qty
+    target.inventory[good as keyof typeof target.inventory] = 0
+  }
+  messages.push(
+    `${attacker.name} looted ${lootEntries.map(([good, qty]) => `${qty} ${good}`).join(', ')} from ${target.name}.`,
+  )
+
+  if (target.role === 'trader') {
+    const homeId = target.meta.homeSettlementId as string | undefined
+    const home = homeId ? world.settlements[homeId] : undefined
+    if (home) {
+      const loss = Math.max(4, Math.round(inventoryValue(attacker) * 0.3))
+      home.treasury = Math.max(0, home.treasury - loss)
+      home.meta.foodStress = Math.min(100, home.meta.foodStress + 3 + rng.int(0, 3))
+      messages.push(`${home.name} suffered caravan losses worth ${loss} silver.`)
+    }
+  }
+
+  if (attacker.role === 'player' && target.role === 'trader') {
+    attacker.reputation -= 8
+  }
+
+  return messages
+}
+
 export const performAttack = (
   world: World,
   attackerId: string,
@@ -77,12 +144,14 @@ export const performAttack = (
   const messages: string[] = []
   const damage = Math.max(1, Math.round(attackPower(attacker) + rng.int(0, 3) - (target.skills.combat ?? 1) * 0.2))
   target.hp -= damage
+  const wasDefeated = target.hp <= 0
   messages.push(`${attacker.name} hit ${target.name} for ${damage}.`)
   if (attacker.role === 'player' && target.role !== 'monster' && target.role !== 'wildlife') {
     attacker.reputation -= 1
   }
   const defeatMessage = resolveDefeat(world, target, attacker, rng)
   if (defeatMessage) messages.push(defeatMessage)
+  messages.push(...plunderDefeatedTarget(world, attacker, target, rng, wasDefeated))
   return messages
 }
 

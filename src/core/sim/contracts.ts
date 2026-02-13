@@ -13,39 +13,51 @@ const activeContractForPlayer = (world: World): Contract | undefined =>
 const newContractId = (world: World, prefix: string, rng: SeededRng): string =>
   `${prefix}-${world.turn}-${rng.int(100, 999)}-${Object.keys(world.contracts).length + 1}`
 
-const createFoodDeliveryContract = (world: World, settlement: Settlement, rng: SeededRng): Contract => {
+const createFoodDeliveryContract = (
+  world: World,
+  settlement: Settlement,
+  rng: SeededRng,
+  level: number,
+): Contract => {
   const good = rng.pick(FOOD_GOODS)
   const need = settlement.needs[good] ?? 2
-  const requiredAmount = clamp(Math.ceil(need * 1.3), 4, 14)
+  const requiredAmount = clamp(Math.ceil(need * (1.2 + level * 0.24)), 4, 18)
   return {
     id: newContractId(world, 'contract-food', rng),
     settlementId: settlement.id,
     issuerKingdomId: settlement.kingdomId,
     kind: 'deliver_food',
+    level,
     status: 'available',
     good,
     requiredAmount,
     progress: 0,
-    rewardReputation: 4 + Math.ceil(requiredAmount / 4),
-    rewardBountyReduction: 4,
-    rewardGoods: { tools: 1 },
-    expiresTurn: world.turn + 28,
+    rewardReputation: 4 + Math.ceil(requiredAmount / 4) + level,
+    rewardBountyReduction: 3 + level,
+    rewardGoods: { tools: level >= 2 ? 2 : 1, gold_ore: level >= 3 ? 1 : 0 },
+    expiresTurn: world.turn + (30 - level * 2),
     meta: {},
   }
 }
 
-const createBanditHuntContract = (world: World, settlement: Settlement, rng: SeededRng): Contract => ({
+const createBanditHuntContract = (
+  world: World,
+  settlement: Settlement,
+  rng: SeededRng,
+  level: number,
+): Contract => ({
   id: newContractId(world, 'contract-hunt', rng),
   settlementId: settlement.id,
   issuerKingdomId: settlement.kingdomId,
   kind: 'hunt_bandits',
+  level,
   status: 'available',
-  requiredAmount: 1,
+  requiredAmount: clamp(level, 1, 3),
   progress: 0,
-  rewardReputation: 7,
-  rewardBountyReduction: 8,
-  rewardGoods: { gold_ore: 1, tools: 1 },
-  expiresTurn: world.turn + 34,
+  rewardReputation: 6 + level * 2,
+  rewardBountyReduction: 6 + level * 2,
+  rewardGoods: { gold_ore: level >= 2 ? 2 : 1, tools: 1 + level },
+  expiresTurn: world.turn + (34 - level),
   meta: {},
 })
 
@@ -62,40 +74,52 @@ const findNearbySettlement = (world: World, settlement: Settlement): Settlement 
     .sort((a, b) => a.distance - b.distance)[0]?.settlement
 }
 
-const createEscortContract = (world: World, settlement: Settlement, rng: SeededRng): Contract => {
+const createEscortContract = (
+  world: World,
+  settlement: Settlement,
+  rng: SeededRng,
+  level: number,
+): Contract => {
   const target = findNearbySettlement(world, settlement)
-  const requiredAmount = clamp(rng.int(8, 14), 6, 16)
+  const requiredAmount = clamp(rng.int(8 + level, 14 + level * 2), 6, 20)
   return {
     id: newContractId(world, 'contract-escort', rng),
     settlementId: settlement.id,
     issuerKingdomId: settlement.kingdomId,
     kind: 'escort_caravan',
+    level,
     status: 'available',
     good: 'grain',
     requiredAmount,
     progress: 0,
-    rewardReputation: 9,
-    rewardBountyReduction: 7,
-    rewardGoods: { tools: 1, gold_ore: 1 },
-    expiresTurn: world.turn + 30,
+    rewardReputation: 8 + level * 2,
+    rewardBountyReduction: 6 + level * 2,
+    rewardGoods: { tools: 1 + level, gold_ore: level >= 2 ? 1 : 0 },
+    expiresTurn: world.turn + (30 - level),
     meta: {
       destinationSettlementId: target?.id,
     },
   }
 }
 
-const createDefendContract = (world: World, settlement: Settlement, rng: SeededRng): Contract => ({
+const createDefendContract = (
+  world: World,
+  settlement: Settlement,
+  rng: SeededRng,
+  level: number,
+): Contract => ({
   id: newContractId(world, 'contract-defend', rng),
   settlementId: settlement.id,
   issuerKingdomId: settlement.kingdomId,
   kind: 'defend_settlement',
+  level,
   status: 'available',
-  requiredAmount: 2,
+  requiredAmount: clamp(2 + Math.floor(level / 2), 2, 4),
   progress: 0,
-  rewardReputation: 10,
-  rewardBountyReduction: 10,
-  rewardGoods: { tools: 2, gold_ore: 1 },
-  expiresTurn: world.turn + 30,
+  rewardReputation: 9 + level * 2,
+  rewardBountyReduction: 8 + level * 2,
+  rewardGoods: { tools: 2 + level, gold_ore: level >= 2 ? 2 : 1 },
+  expiresTurn: world.turn + (30 - level),
   meta: {
     targetSettlementId: settlement.id,
   },
@@ -121,10 +145,16 @@ const createContractForSettlement = (
   const pressure =
     settlement.meta.foodStress > 18 ||
     settlement.needs.grain + settlement.needs.fish > settlement.stockpile.grain + settlement.stockpile.fish
-  if (hasWar && settlement.tier !== 'hamlet' && rng.chance(0.5)) return createDefendContract(world, settlement, rng)
-  if (settlement.tier === 'city' && rng.chance(0.4)) return createEscortContract(world, settlement, rng)
-  if (pressure) return createFoodDeliveryContract(world, settlement, rng)
-  return createBanditHuntContract(world, settlement, rng)
+  const baseLevel = settlement.tier === 'city' ? 3 : settlement.tier === 'town' ? 2 : 1
+  const level = clamp(baseLevel + (hasWar ? 1 : 0) + (settlement.meta.foodStress > 35 ? 1 : 0), 1, 4)
+  if (hasWar && settlement.tier !== 'hamlet' && rng.chance(0.5)) {
+    return createDefendContract(world, settlement, rng, level)
+  }
+  if (settlement.tier === 'city' && rng.chance(0.4)) {
+    return createEscortContract(world, settlement, rng, level)
+  }
+  if (pressure) return createFoodDeliveryContract(world, settlement, rng, level)
+  return createBanditHuntContract(world, settlement, rng, level)
 }
 
 export const seedInitialContracts = (world: World, rng: SeededRng): void => {

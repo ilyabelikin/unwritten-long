@@ -144,6 +144,7 @@ export interface Contract {
   settlementId: string
   issuerKingdomId: string
   kind: ContractKind
+  level: number
   status: ContractStatus
   assignedCharacterId?: string
   good?: Good

@@ -65,6 +65,7 @@ const ensureContracts = (world: World): void => {
   if (!world.contracts) world.contracts = {}
   for (const contract of Object.values(world.contracts)) {
     contract.meta = contract.meta ?? {}
+    contract.level = Number.isFinite(contract.level) ? contract.level : 1
     contract.progress = Number.isFinite(contract.progress) ? contract.progress : 0
     contract.requiredAmount = Number.isFinite(contract.requiredAmount) ? contract.requiredAmount : 1
     contract.rewardReputation = Number.isFinite(contract.rewardReputation) ? contract.rewardReputation : 2

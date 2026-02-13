@@ -170,7 +170,8 @@ export const Hud = ({
             {activeContract ? (
               <div className="subpanel">
                 <p>
-                  Active: {activeContract.kind} · {activeContract.progress}/{activeContract.requiredAmount}
+                  Active: {activeContract.kind} (T{activeContract.level}) · {activeContract.progress}/
+                  {activeContract.requiredAmount}
                 </p>
                 {activeContract.kind === 'escort_caravan' && (
                   <p>
@@ -196,6 +197,7 @@ export const Hud = ({
                             ? `Escort caravan carrying ${contract.requiredAmount} ${contract.good}`
                             : `Defend settlement from ${contract.requiredAmount} hostile groups`}
                     </p>
+                    <p>Tier: {contract.level}</p>
                     <p>
                       Reward: +{contract.rewardReputation} rep · {Object.entries(contract.rewardGoods)
                         .map(([good, qty]) => `${qty} ${good}`)

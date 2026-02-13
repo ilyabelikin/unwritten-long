@@ -157,8 +157,12 @@ describe('turn simulation', () => {
     const messages = playerSponsorTreaty(world)
     const after = world.kingdomRelations[[localKingdom, foreign].sort().join('|')]
     expect(messages[0]).toContain('sponsored talks')
+    expect(messages.some((line) => line.includes('peace corridor'))).toBe(true)
     expect(after).toBeGreaterThan(before)
     expect(world.kingdomConflicts[[localKingdom, foreign].sort().join('|')]).toBe(false)
+    expect(world.kingdoms[localKingdom].policy.peaceDividendPartnerKingdomId).toBe(foreign)
+    expect(world.kingdoms[foreign].policy.peaceDividendPartnerKingdomId).toBe(localKingdom)
+    expect(world.kingdoms[localKingdom].policy.peaceDividendUntilTurn).toBeGreaterThanOrEqual(world.turn)
   })
 
   it('guards prioritize nearby warband threats during conflict', () => {
@@ -251,6 +255,31 @@ describe('turn simulation', () => {
     world.turn = 4
     advanceWorldTurn(world, 4)
     expect(Number(player.meta.bounty ?? 0)).toBe(18)
+  })
+
+  it('peace-corridor settlements grant extra bounty decay leniency', () => {
+    const world = generateWorld(9104)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const kingdomId = world.settlements[settlementId].kingdomId
+    const partnerId = Object.keys(world.kingdoms).find((id) => id !== kingdomId)
+    expect(partnerId).toBeDefined()
+    if (!partnerId) return
+    world.kingdoms[kingdomId].policy.bountyDecayPerTick = 2
+    world.kingdoms[kingdomId].policy.peaceDividendPartnerKingdomId = partnerId
+    world.kingdoms[partnerId].policy.peaceDividendPartnerKingdomId = kingdomId
+    world.kingdoms[kingdomId].policy.peaceDividendUntilTurn = 20
+    world.kingdoms[partnerId].policy.peaceDividendUntilTurn = 20
+    world.kingdoms[kingdomId].policy.peaceDividendIntensity = 26
+    world.kingdoms[partnerId].policy.peaceDividendIntensity = 26
+    setRelation(world, kingdomId, partnerId, 18)
+    setWarState(world, kingdomId, partnerId, false)
+    player.meta.bounty = 30
+    world.turn = 4
+    advanceWorldTurn(world, 8)
+    expect(Number(player.meta.bounty ?? 0)).toBe(27)
   })
 
   it('martial law edicts reduce bounty decay and harden pardon cost', () => {

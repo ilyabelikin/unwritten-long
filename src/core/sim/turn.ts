@@ -55,6 +55,30 @@ const legalPolicyForTile = (world: World, tileId: string) => {
   return legalPolicyForKingdom(world, settlementKingdomId ?? tile.kingdomId)
 }
 
+const peaceDividendDecayBonusForTile = (world: World, tileId: string): number => {
+  const tile = world.tiles[tileId]
+  if (!tile?.settlementId) return 0
+  const settlement = world.settlements[tile.settlementId]
+  if (!settlement) return 0
+  const policy = world.kingdoms[settlement.kingdomId]?.policy
+  if (!policy) return 0
+  if (policy.peaceDividendUntilTurn < world.turn) return 0
+  const partner = policy.peaceDividendPartnerKingdomId
+  if (!partner || partner === 'none' || !world.kingdoms[partner]) return 0
+  const partnerPolicy = world.kingdoms[partner].policy
+  if (
+    partnerPolicy.peaceDividendUntilTurn < world.turn ||
+    partnerPolicy.peaceDividendPartnerKingdomId !== settlement.kingdomId
+  ) {
+    return 0
+  }
+  const intensity = Math.min(policy.peaceDividendIntensity, partnerPolicy.peaceDividendIntensity)
+  if (intensity < 18) return 0
+  if (isAtWar(world, settlement.kingdomId, partner)) return 0
+  if (relationBetween(world, settlement.kingdomId, partner) < -4) return 0
+  return intensity >= 34 ? 2 : 1
+}
+
 const currentSettlementForPlayer = (world: World) => {
   const player = world.characters[world.playerId]
   if (!player?.alive) return undefined
@@ -534,7 +558,8 @@ export const advanceWorldTurn = (world: World, seedOffset = 0): string[] => {
     if (bounty > 0 && world.tiles[player.location].settlementId && world.seasonTurn % 5 === 0) {
       const legalPolicy = legalPolicyForTile(world, player.location)
       const decay = legalPolicy ? effectiveBountyDecayPerTick(legalPolicy) : 2
-      player.meta.bounty = Math.max(0, bounty - decay)
+      const corridorBonus = peaceDividendDecayBonusForTile(world, player.location)
+      player.meta.bounty = Math.max(0, bounty - decay - corridorBonus)
     }
     const manhuntExpires = Number(player.meta.manhuntExpiresTurn ?? -1)
     if (manhuntExpires >= 0 && manhuntExpires < world.turn) {
@@ -712,6 +737,20 @@ export const playerSponsorTreaty = (world: World): string[] => {
   if (isAtWar(world, localKingdomId, targetKingdomId) && improved >= -8) {
     setWarState(world, localKingdomId, targetKingdomId, false)
   }
+  const localPolicy = world.kingdoms[localKingdomId]?.policy
+  const targetPolicy = world.kingdoms[targetKingdomId]?.policy
+  let corridorOpened = false
+  if (localPolicy && targetPolicy && !isAtWar(world, localKingdomId, targetKingdomId) && improved >= -2) {
+    const intensity = clamp(12 + Math.floor((improved + 16) / 8), 10, 32)
+    const duration = 10 + Math.floor(Math.max(0, improved) / 10)
+    localPolicy.peaceDividendPartnerKingdomId = targetKingdomId
+    targetPolicy.peaceDividendPartnerKingdomId = localKingdomId
+    localPolicy.peaceDividendIntensity = Math.max(localPolicy.peaceDividendIntensity, intensity)
+    targetPolicy.peaceDividendIntensity = Math.max(targetPolicy.peaceDividendIntensity, intensity)
+    localPolicy.peaceDividendUntilTurn = Math.max(localPolicy.peaceDividendUntilTurn, world.turn + duration)
+    targetPolicy.peaceDividendUntilTurn = Math.max(targetPolicy.peaceDividendUntilTurn, world.turn + duration)
+    corridorOpened = true
+  }
   player.reputation += 3
   reducePlayerBounty(world, 4)
   adjustPlayerKingdomFavor(world, localKingdomId, 3)
@@ -719,6 +758,9 @@ export const playerSponsorTreaty = (world: World): string[] => {
   const messages = [
     `You sponsored talks between ${world.kingdoms[localKingdomId].name} and ${world.kingdoms[targetKingdomId].name}.`,
   ]
+  if (corridorOpened) {
+    messages.push('A provisional peace corridor opened, easing frontier pressure and legal scrutiny.')
+  }
   world.messages = [...messages, ...world.messages].slice(0, 120)
   return messages
 }

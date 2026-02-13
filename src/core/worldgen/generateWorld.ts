@@ -217,6 +217,10 @@ const assignKingdoms = (
         taxRate: [0.12, 0.1, 0.14][index],
         patrolFocus: [0.45, 0.4, 0.52][index],
         tradeStance: ['balanced', 'open', 'protectionist'][index] as 'open' | 'balanced' | 'protectionist',
+        guardHostilityReputation: [-18, -24, -11][index],
+        guardHostilityBounty: [20, 27, 14][index],
+        bountyDecayPerTick: [2, 3, 1][index],
+        pardonGoldFactor: [1, 0.82, 1.35][index],
       },
     }
   })

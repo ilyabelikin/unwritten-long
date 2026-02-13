@@ -44,6 +44,10 @@ const ensureKingdomPoliciesAndConflicts = (world: World): void => {
         taxRate: 0.12,
         patrolFocus: 0.45,
         tradeStance: 'balanced',
+        guardHostilityReputation: -18,
+        guardHostilityBounty: 20,
+        bountyDecayPerTick: 2,
+        pardonGoldFactor: 1,
       }
     }
     kingdom.policy.taxRate = Number.isFinite(kingdom.policy.taxRate) ? kingdom.policy.taxRate : 0.12
@@ -51,6 +55,18 @@ const ensureKingdomPoliciesAndConflicts = (world: World): void => {
       ? kingdom.policy.patrolFocus
       : 0.45
     kingdom.policy.tradeStance = kingdom.policy.tradeStance ?? 'balanced'
+    kingdom.policy.guardHostilityReputation = Number.isFinite(kingdom.policy.guardHostilityReputation)
+      ? kingdom.policy.guardHostilityReputation
+      : -18
+    kingdom.policy.guardHostilityBounty = Number.isFinite(kingdom.policy.guardHostilityBounty)
+      ? kingdom.policy.guardHostilityBounty
+      : 20
+    kingdom.policy.bountyDecayPerTick = Number.isFinite(kingdom.policy.bountyDecayPerTick)
+      ? kingdom.policy.bountyDecayPerTick
+      : 2
+    kingdom.policy.pardonGoldFactor = Number.isFinite(kingdom.policy.pardonGoldFactor)
+      ? kingdom.policy.pardonGoldFactor
+      : 1
   }
   for (let i = 0; i < ids.length; i += 1) {
     for (let j = i + 1; j < ids.length; j += 1) {

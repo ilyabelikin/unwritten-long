@@ -48,6 +48,10 @@ describe('diplomacy simulation', () => {
       expect(kingdom.policy.taxRate).toBeGreaterThan(0)
       expect(kingdom.policy.patrolFocus).toBeGreaterThan(0)
       expect(['open', 'balanced', 'protectionist']).toContain(kingdom.policy.tradeStance)
+      expect(kingdom.policy.guardHostilityReputation).toBeLessThanOrEqual(-6)
+      expect(kingdom.policy.guardHostilityBounty).toBeGreaterThanOrEqual(10)
+      expect(kingdom.policy.bountyDecayPerTick).toBeGreaterThan(0)
+      expect(kingdom.policy.pardonGoldFactor).toBeGreaterThan(0)
     }
   })
 

@@ -47,6 +47,10 @@ describe('game persistence', () => {
     expect(Object.keys(loaded.world?.playerKingdomFavor ?? {})).not.toHaveLength(0)
     expect(loaded.world?.contracts).toBeDefined()
     expect(loadedKingdom?.policy.tradeStance).toBe('balanced')
+    expect(loadedKingdom?.policy.guardHostilityReputation).toBe(-18)
+    expect(loadedKingdom?.policy.guardHostilityBounty).toBe(20)
+    expect(loadedKingdom?.policy.bountyDecayPerTick).toBe(2)
+    expect(loadedKingdom?.policy.pardonGoldFactor).toBe(1)
   })
 })
 

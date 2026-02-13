@@ -238,6 +238,41 @@ describe('turn simulation', () => {
     expect(player.inventory.gold_ore ?? 0).toBeLessThan(3)
   })
 
+  it('settlement kingdom policy controls bounty decay amount', () => {
+    const world = generateWorld(9099)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const kingdomId = world.settlements[settlementId].kingdomId
+    world.kingdoms[kingdomId].policy.bountyDecayPerTick = 4
+    player.meta.bounty = 22
+    world.turn = 4
+    advanceWorldTurn(world, 4)
+    expect(Number(player.meta.bounty ?? 0)).toBe(18)
+  })
+
+  it('pardon cost scales with kingdom legal policy factor', () => {
+    const world = generateWorld(9100)
+    const citySettlement = Object.values(world.settlements).find((settlement) => settlement.tier === 'city')
+    expect(citySettlement).toBeDefined()
+    if (!citySettlement) return
+    const player = world.characters[world.playerId]
+    player.location = citySettlement.tiles[0]
+    player.meta.bounty = 70
+    player.inventory.gold_ore = 3
+    player.inventory.tools = 0
+    world.kingdoms[citySettlement.kingdomId].policy.pardonGoldFactor = 1.6
+
+    const denied = playerRequestPardon(world)
+    expect(denied[0]).toContain('requires 4 gold ore')
+
+    player.inventory.gold_ore = 4
+    const approved = playerRequestPardon(world)
+    expect(approved[0]).toContain('granted a pardon')
+    expect(Number(player.meta.bounty ?? 0)).toBe(0)
+  })
+
   it('warband bandits march toward enemy kingdom settlements', () => {
     const world = generateWorld(9096)
     const [left, right] = Object.keys(world.kingdoms)

@@ -71,6 +71,10 @@ const adjustKingdomPolicies = (world: World, rng: SeededRng, messages: string[])
     const beforeTax = policy.taxRate
     const beforePatrol = policy.patrolFocus
     const beforeStance = policy.tradeStance
+    const beforeRepHostility = policy.guardHostilityReputation
+    const beforeBountyHostility = policy.guardHostilityBounty
+    const beforeBountyDecay = policy.bountyDecayPerTick
+    const beforePardonFactor = policy.pardonGoldFactor
 
     if (prosperity < 35) {
       policy.taxRate = clamp(policy.taxRate - 0.01, 0.05, 0.28)
@@ -92,13 +96,29 @@ const adjustKingdomPolicies = (world: World, rng: SeededRng, messages: string[])
       policy.tradeStance = 'balanced'
     }
 
+    if (hostileNeighbors >= 2) {
+      policy.guardHostilityReputation = clamp(Math.round(policy.guardHostilityReputation + 1), -30, -6)
+      policy.guardHostilityBounty = clamp(Math.round(policy.guardHostilityBounty - 1), 10, 34)
+      policy.bountyDecayPerTick = clamp(Math.round(policy.bountyDecayPerTick - 1), 1, 5)
+      policy.pardonGoldFactor = clamp(policy.pardonGoldFactor + 0.03, 0.6, 1.8)
+    } else if (prosperity < 35) {
+      policy.guardHostilityReputation = clamp(Math.round(policy.guardHostilityReputation - 1), -30, -6)
+      policy.guardHostilityBounty = clamp(Math.round(policy.guardHostilityBounty + 1), 10, 34)
+      policy.bountyDecayPerTick = clamp(Math.round(policy.bountyDecayPerTick + 1), 1, 5)
+      policy.pardonGoldFactor = clamp(policy.pardonGoldFactor - 0.03, 0.6, 1.8)
+    }
+
     const changed =
       Math.abs(beforeTax - policy.taxRate) > 0.001 ||
       Math.abs(beforePatrol - policy.patrolFocus) > 0.001 ||
-      beforeStance !== policy.tradeStance
+      beforeStance !== policy.tradeStance ||
+      beforeRepHostility !== policy.guardHostilityReputation ||
+      beforeBountyHostility !== policy.guardHostilityBounty ||
+      beforeBountyDecay !== policy.bountyDecayPerTick ||
+      Math.abs(beforePardonFactor - policy.pardonGoldFactor) > 0.001
     if (changed && rng.chance(0.5)) {
       messages.push(
-        `${kingdom.name} shifted policy (${policy.tradeStance}, tax ${(policy.taxRate * 100).toFixed(0)}%, patrol ${policy.patrolFocus.toFixed(2)}).`,
+        `${kingdom.name} shifted policy (${policy.tradeStance}, tax ${(policy.taxRate * 100).toFixed(0)}%, patrol ${policy.patrolFocus.toFixed(2)}, law rep<=${policy.guardHostilityReputation}, bounty>=${policy.guardHostilityBounty}).`,
       )
     }
   }

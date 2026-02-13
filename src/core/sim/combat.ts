@@ -167,7 +167,15 @@ export const isAggressiveTowards = (actor: Character, target: Character, world: 
   if (!actor.alive || !target.alive || actor.id === target.id) return false
   if (actor.location !== target.location) return false
   if (actor.role === 'guard' && target.id === world.playerId) {
-    return target.reputation < -20
+    const guardCityId = actor.meta.guardCityId as string | undefined
+    const guardKingdomId = guardCityId ? world.settlements[guardCityId]?.kingdomId : actor.homeSettlementId
+      ? world.settlements[actor.homeSettlementId]?.kingdomId
+      : undefined
+    const legalPolicy = guardKingdomId ? world.kingdoms[guardKingdomId]?.policy : undefined
+    const repThreshold = legalPolicy?.guardHostilityReputation ?? -20
+    const bountyThreshold = legalPolicy?.guardHostilityBounty ?? 20
+    const bounty = Number(target.meta.bounty ?? 0)
+    return target.reputation <= repThreshold || bounty >= bountyThreshold
   }
   if (actor.role === 'bandit') return target.role === 'trader' || target.id === world.playerId
   if (actor.role === 'monster') return target.species !== actor.species

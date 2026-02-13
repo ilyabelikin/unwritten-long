@@ -32,6 +32,18 @@ const adjustPlayerKingdomFavor = (world: World, kingdomId: string, delta: number
   world.playerKingdomFavor[kingdomId] = clamp(Number(world.playerKingdomFavor[kingdomId] ?? 0) + delta, 0, 100)
 }
 
+const legalPolicyForKingdom = (world: World, kingdomId?: string) => {
+  if (!kingdomId) return undefined
+  return world.kingdoms[kingdomId]?.policy
+}
+
+const legalPolicyForTile = (world: World, tileId: string) => {
+  const tile = world.tiles[tileId]
+  if (!tile) return undefined
+  const settlementKingdomId = tile.settlementId ? world.settlements[tile.settlementId]?.kingdomId : undefined
+  return legalPolicyForKingdom(world, settlementKingdomId ?? tile.kingdomId)
+}
+
 const currentSettlementForPlayer = (world: World) => {
   const player = world.characters[world.playerId]
   if (!player?.alive) return undefined
@@ -254,9 +266,12 @@ const processNpcIntent = (world: World, actor: Character, rng: SeededRng, messag
     const guardKingdomId = guardCityId ? world.settlements[guardCityId]?.kingdomId : actor.homeSettlementId
       ? world.settlements[actor.homeSettlementId]?.kingdomId
       : undefined
-    const patrolFocus = guardKingdomId ? world.kingdoms[guardKingdomId]?.policy.patrolFocus ?? 0.4 : 0.4
+    const legalPolicy = legalPolicyForKingdom(world, guardKingdomId)
+    const patrolFocus = legalPolicy?.patrolFocus ?? 0.4
+    const repHostility = legalPolicy?.guardHostilityReputation ?? -20
+    const bountyHostility = legalPolicy?.guardHostilityBounty ?? 20
     const criminalHeat = getPlayerBounty(world)
-    if (player.reputation < -20 || criminalHeat >= 20) {
+    if (player.reputation <= repHostility || criminalHeat >= bountyHostility) {
       const chaseRadius = patrolFocus >= 0.75 ? 6 : patrolFocus >= 0.5 ? 5 : 4
       const nearPlayer = hexDistance(parseKey(actor.location), parseKey(player.location)) <= chaseRadius
       const target = nearPlayer ? player.location : actor.location
@@ -491,7 +506,8 @@ export const advanceWorldTurn = (world: World, seedOffset = 0): string[] => {
   if (player?.alive) {
     const bounty = Number(player.meta.bounty ?? 0)
     if (bounty > 0 && world.tiles[player.location].settlementId && world.seasonTurn % 5 === 0) {
-      player.meta.bounty = Math.max(0, bounty - 2)
+      const decay = legalPolicyForTile(world, player.location)?.bountyDecayPerTick ?? 2
+      player.meta.bounty = Math.max(0, bounty - decay)
     }
   }
 
@@ -682,10 +698,12 @@ export const playerRequestPardon = (world: World): string[] => {
   if (player.ap < 1) return ['Not enough AP to request pardon.']
   const bounty = Number(player.meta.bounty ?? 0)
   if (bounty <= 0) return ['You are not currently wanted.']
+  const legalPolicy = legalPolicyForKingdom(world, settlement.kingdomId)
 
   const gold = Math.floor(player.inventory.gold_ore ?? 0)
   const tools = Math.floor(player.inventory.tools ?? 0)
-  const requiredGold = Math.max(1, Math.ceil(bounty / 35))
+  const pardonFactor = legalPolicy?.pardonGoldFactor ?? 1
+  const requiredGold = Math.max(1, Math.ceil((bounty / 35) * pardonFactor))
   if (gold < requiredGold && tools < requiredGold * 3) {
     return [`Pardon requires ${requiredGold} gold ore (or ${requiredGold * 3} tools).`]
   }

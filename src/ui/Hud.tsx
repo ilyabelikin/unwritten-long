@@ -410,6 +410,10 @@ export const Hud = ({
               </span>
               <span>Tax: {(kingdom.policy.taxRate * 100).toFixed(0)}%</span>
               <span>Patrol: {kingdom.policy.patrolFocus.toFixed(2)}</span>
+              <span>Guard rep≤{kingdom.policy.guardHostilityReputation}</span>
+              <span>Guard bounty≥{kingdom.policy.guardHostilityBounty}</span>
+              <span>Bounty decay: {kingdom.policy.bountyDecayPerTick}/tick</span>
+              <span>Pardon factor: {kingdom.policy.pardonGoldFactor.toFixed(2)}x</span>
               <span>Campaign: {world.campaignProgress[kingdom.id] ?? 0}</span>
               <span>
                 Favor: {world.playerKingdomFavor[kingdom.id] ?? 0} ({favorRankTitle(world.playerKingdomFavor[kingdom.id] ?? 0)})

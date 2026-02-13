@@ -137,6 +137,10 @@ export interface Kingdom {
     taxRate: number
     patrolFocus: number
     tradeStance: 'open' | 'balanced' | 'protectionist'
+    guardHostilityReputation: number
+    guardHostilityBounty: number
+    bountyDecayPerTick: number
+    pardonGoldFactor: number
   }
 }
 

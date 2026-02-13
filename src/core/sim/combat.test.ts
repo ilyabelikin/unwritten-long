@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { generateWorld } from '../worldgen/generateWorld'
 import { SeededRng } from '../random'
-import { performAttack } from './combat'
+import { isAggressiveTowards, performAttack } from './combat'
 
 describe('combat plunder outcomes', () => {
   it('bandits plunder caravans and hurt settlement treasury', () => {
@@ -93,6 +93,29 @@ describe('combat plunder outcomes', () => {
     performAttack(world, 'test-bandit', world.playerId, new SeededRng(7))
     expect((player.inventory.grain ?? 0) + (player.inventory.tools ?? 0)).toBeLessThan(14)
     expect(world.characters['test-bandit'].inventory.grain ?? 0).toBeGreaterThan(0)
+  })
+
+  it('guards use kingdom legal thresholds for player hostility', () => {
+    const world = generateWorld(7703)
+    const guard = Object.values(world.characters).find((character) => character.role === 'guard')
+    expect(guard).toBeDefined()
+    if (!guard) return
+    const guardSettlementId = guard.homeSettlementId ?? (guard.meta.guardCityId as string | undefined)
+    expect(guardSettlementId).toBeDefined()
+    if (!guardSettlementId) return
+    const kingdomId = world.settlements[guardSettlementId].kingdomId
+    const policy = world.kingdoms[kingdomId].policy
+    const player = world.characters[world.playerId]
+    player.location = guard.location
+    player.reputation = 0
+    player.meta.bounty = 0
+
+    policy.guardHostilityReputation = -30
+    policy.guardHostilityBounty = 40
+    expect(isAggressiveTowards(guard, player, world)).toBe(false)
+
+    policy.guardHostilityReputation = 2
+    expect(isAggressiveTowards(guard, player, world)).toBe(true)
   })
 })
 

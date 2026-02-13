@@ -33,6 +33,26 @@ describe('turn simulation', () => {
     expect(movementCost(world, roadTile, neighborRoad)).toBe(1)
   })
 
+  it('applies elevation and terrain movement modifiers', () => {
+    const world = generateWorld(313)
+    const start = world.tileOrder.find((id) => world.tiles[id].terrain !== 'sea')!
+    const target = world.tileOrder.find((id) => id !== start && world.tiles[id].terrain !== 'sea')!
+
+    world.tiles[start].road = false
+    world.tiles[target].road = false
+    world.tiles[start].elevation = 1
+    world.tiles[target].elevation = 3
+    world.tiles[target].terrain = 'plains'
+    world.tiles[target].vegetation = 'none'
+    world.tiles[target].rough = false
+    expect(movementCost(world, start, target)).toBe(3)
+
+    world.tiles[target].terrain = 'mountain'
+    world.tiles[target].elevation = 2
+    world.tiles[target].rough = true
+    expect(movementCost(world, start, target)).toBe(3)
+  })
+
   it('stays stable over many world turns', () => {
     const world = generateWorld(9088)
     for (let i = 0; i < 90; i += 1) {

@@ -3,11 +3,8 @@ import type { Tile, World } from './types'
 
 const travelCost = (tile: Tile): number => {
   if (tile.terrain === 'sea') return Number.POSITIVE_INFINITY
-  let cost = 1
-  if (tile.terrain === 'hills') cost += 1
-  if (tile.terrain === 'mountain') cost += 3
-  if (tile.vegetation === 'deep_forest') cost += 1
-  if (tile.rough) cost += 1
+  let cost = tile.terrain === 'mountain' || tile.vegetation === 'deep_forest' ? 2 : 1
+  if (tile.rough && tile.terrain !== 'mountain' && tile.vegetation !== 'deep_forest') cost += 1
   if (tile.road) cost = Math.max(1, cost - 2)
   return cost
 }

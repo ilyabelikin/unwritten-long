@@ -39,10 +39,13 @@ const stackOffsets = (count: number): { x: number; y: number }[] => {
   if (count <= 1) return [{ x: 0, y: 0 }]
   if (count === 2) return [{ x: -10, y: 0 }, { x: 10, y: 0 }]
   const radius = 13
-  return Array.from({ length: count }, (_, i) => {
-    const angle = (Math.PI * 2 * i) / count
+  const ringCount = count - 1
+  const offsets: { x: number; y: number }[] = [{ x: 0, y: 0 }]
+  const ring = Array.from({ length: ringCount }, (_, i) => {
+    const angle = (Math.PI * 2 * i) / ringCount
     return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius }
   })
+  return [...offsets, ...ring]
 }
 
 interface MapViewProps {

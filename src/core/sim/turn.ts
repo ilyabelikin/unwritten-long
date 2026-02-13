@@ -23,11 +23,10 @@ export const movementCost = (world: World, fromId: string, toId: string): number
   const to = world.tiles[toId]
   if (!from || !to || to.terrain === 'sea') return Number.POSITIVE_INFINITY
   if (from.road && to.road) return 1
-  let cost = 1
+  let cost = to.terrain === 'mountain' || to.vegetation === 'deep_forest' ? 2 : 1
   const climb = Math.max(0, to.elevation - from.elevation)
   cost += climb
-  if (to.terrain === 'mountain' || to.vegetation === 'deep_forest') cost += 2
-  else if (to.rough) cost += 1
+  if (to.rough && to.terrain !== 'mountain' && to.vegetation !== 'deep_forest') cost += 1
   return cost
 }
 

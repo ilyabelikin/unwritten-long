@@ -50,5 +50,24 @@ describe('diplomacy simulation', () => {
       expect(['open', 'balanced', 'protectionist']).toContain(kingdom.policy.tradeStance)
     }
   })
+
+  it('can trigger positive trade charter incidents', () => {
+    const world = generateWorld(9905)
+    for (const key of Object.keys(world.kingdomRelations)) {
+      world.kingdomRelations[key] = 70
+      world.kingdomConflicts[key] = false
+    }
+    const capitals = Object.values(world.kingdoms)
+      .map((kingdom) => kingdom.capitalSettlementId)
+      .filter((id): id is string => Boolean(id))
+      .map((id) => world.settlements[id])
+      .filter(Boolean)
+    const treasuryBefore = capitals.reduce((total, settlement) => total + settlement.treasury, 0)
+    world.turn = 36
+    const messages = simulateDiplomacyTurn(world, new SeededRng(41))
+    const treasuryAfter = capitals.reduce((total, settlement) => total + settlement.treasury, 0)
+    expect(messages.some((line) => line.includes('trade charter'))).toBe(true)
+    expect(treasuryAfter).toBeGreaterThan(treasuryBefore)
+  })
 })
 

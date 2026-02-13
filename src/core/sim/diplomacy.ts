@@ -104,6 +104,63 @@ const adjustKingdomPolicies = (world: World, rng: SeededRng, messages: string[])
   }
 }
 
+const capitalSettlement = (world: World, kingdomId: string) => {
+  const kingdom = world.kingdoms[kingdomId]
+  const explicit = kingdom?.capitalSettlementId ? world.settlements[kingdom.capitalSettlementId] : undefined
+  if (explicit) return explicit
+  return Object.values(world.settlements)
+    .filter((settlement) => settlement.kingdomId === kingdomId)
+    .sort((a, b) => b.populationIds.length - a.populationIds.length)[0]
+}
+
+const applyDiplomaticIncident = (world: World, rng: SeededRng, messages: string[]): void => {
+  if (world.turn % 18 !== 0) return
+  const pairs = Object.keys(world.kingdomRelations)
+  if (pairs.length === 0) return
+  const chosen = pairs[rng.int(0, pairs.length - 1)]
+  const [left, right] = chosen.split('|')
+  const relation = relationBetween(world, left, right)
+  const leftKingdom = world.kingdoms[left]
+  const rightKingdom = world.kingdoms[right]
+  if (!leftKingdom || !rightKingdom) return
+
+  const leftCapital = capitalSettlement(world, left)
+  const rightCapital = capitalSettlement(world, right)
+
+  if (!isAtWar(world, left, right) && relation >= 42) {
+    const bonus = rng.int(12, 28)
+    if (leftCapital) leftCapital.treasury += bonus
+    if (rightCapital) rightCapital.treasury += bonus
+    setRelation(world, left, right, relation + 8)
+    messages.push(
+      `${leftKingdom.name} and ${rightKingdom.name} signed a trade charter (+${bonus} treasury each).`,
+    )
+    return
+  }
+
+  if (!isAtWar(world, left, right) && relation <= -22) {
+    const loss = rng.int(4, 12)
+    if (leftCapital) leftCapital.treasury = Math.max(0, leftCapital.treasury - loss)
+    if (rightCapital) rightCapital.treasury = Math.max(0, rightCapital.treasury - loss)
+    setRelation(world, left, right, relation - 10)
+    messages.push(`${leftKingdom.name} and ${rightKingdom.name} suffered a violent border incident.`)
+    return
+  }
+
+  if (isAtWar(world, left, right) && relation >= -8) {
+    setRelation(world, left, right, relation + 10)
+    messages.push(`${leftKingdom.name} and ${rightKingdom.name} opened armistice talks.`)
+    return
+  }
+
+  if (isAtWar(world, left, right) && rng.chance(0.5)) {
+    setRelation(world, left, right, relation + 6)
+    if (leftCapital) leftCapital.meta.foodStress = clamp(leftCapital.meta.foodStress + 2, 0, 100)
+    if (rightCapital) rightCapital.meta.foodStress = clamp(rightCapital.meta.foodStress + 2, 0, 100)
+    messages.push(`${leftKingdom.name} and ${rightKingdom.name} suffered war exhaustion.`)
+  }
+}
+
 export const simulateDiplomacyTurn = (world: World, rng: SeededRng): string[] => {
   const messages: string[] = []
   if (world.turn % 12 !== 0) return messages
@@ -132,6 +189,7 @@ export const simulateDiplomacyTurn = (world: World, rng: SeededRng): string[] =>
       }
     }
   }
+  applyDiplomaticIncident(world, rng, messages)
   adjustKingdomPolicies(world, rng, messages)
   return messages
 }

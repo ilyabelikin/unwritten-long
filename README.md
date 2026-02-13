@@ -17,6 +17,7 @@ A browser-based turn-based hex adventure simulation with:
 - Kingdom campaign progression: completed contracts raise campaign standing and unlock high-priority royal objectives.
 - Siege pressure simulation for towns/cities under nearby hostile presence, influencing economy and defense urgency.
 - Royal campaign chains run in staged objectives; missing critical stages can collapse the full chain.
+- Kingdom favor/rank progression unlocks exclusive local commissions with higher requirements and rewards.
 
 ## Tech
 
@@ -50,6 +51,7 @@ Then open the printed localhost URL.
 - **Contract board in settlements**: accept local contracts and report progress for rewards.
 - **Royal campaign contracts** may appear in capitals after sustained kingdom service.
 - **Siege pressure** is visible in settlement stats and increases demand for defensive contracts.
+- **Kingdom favor ranks** are shown in diplomacy intel and gate special contract offers.
 - **Militia action**: spend tools to raise temporary local guards during dangerous periods.
 
 ## Rules implemented

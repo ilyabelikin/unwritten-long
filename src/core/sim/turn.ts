@@ -19,6 +19,11 @@ import {
 } from './edicts'
 import { simulateEconomyTurn, estimateGoodPrice } from './economy'
 import { simulateCourtPolitics, simulateJusticeEvents, spawnWorldEvents } from './events'
+import {
+  bountyDecayBonusFromPeaceCorridor,
+  guardLeniencyFromPeaceCorridor,
+  pardonDiscountMultiplierFromPeaceCorridor,
+} from './peaceCorridor'
 import { simulateSiegePressure } from './siege'
 import { simulateWildlifeEcology } from './wildlife'
 
@@ -53,30 +58,6 @@ const legalPolicyForTile = (world: World, tileId: string) => {
   if (!tile) return undefined
   const settlementKingdomId = tile.settlementId ? world.settlements[tile.settlementId]?.kingdomId : undefined
   return legalPolicyForKingdom(world, settlementKingdomId ?? tile.kingdomId)
-}
-
-const peaceDividendDecayBonusForTile = (world: World, tileId: string): number => {
-  const tile = world.tiles[tileId]
-  if (!tile?.settlementId) return 0
-  const settlement = world.settlements[tile.settlementId]
-  if (!settlement) return 0
-  const policy = world.kingdoms[settlement.kingdomId]?.policy
-  if (!policy) return 0
-  if (policy.peaceDividendUntilTurn < world.turn) return 0
-  const partner = policy.peaceDividendPartnerKingdomId
-  if (!partner || partner === 'none' || !world.kingdoms[partner]) return 0
-  const partnerPolicy = world.kingdoms[partner].policy
-  if (
-    partnerPolicy.peaceDividendUntilTurn < world.turn ||
-    partnerPolicy.peaceDividendPartnerKingdomId !== settlement.kingdomId
-  ) {
-    return 0
-  }
-  const intensity = Math.min(policy.peaceDividendIntensity, partnerPolicy.peaceDividendIntensity)
-  if (intensity < 18) return 0
-  if (isAtWar(world, settlement.kingdomId, partner)) return 0
-  if (relationBetween(world, settlement.kingdomId, partner) < -4) return 0
-  return intensity >= 34 ? 2 : 1
 }
 
 const currentSettlementForPlayer = (world: World) => {
@@ -313,8 +294,13 @@ const processNpcIntent = (world: World, actor: Character, rng: SeededRng, messag
     const manhuntKingdom = player.meta.manhuntKingdomId as string | undefined
     const manhuntExpiresTurn = Number(player.meta.manhuntExpiresTurn ?? -1)
     const manhuntActive = manhuntKingdom === guardKingdomId && manhuntExpiresTurn >= world.turn
-    const repHostility = legalPolicy ? effectiveGuardHostilityReputation(legalPolicy, manhuntActive) : -20
-    const bountyHostility = legalPolicy ? effectiveGuardHostilityBounty(legalPolicy, manhuntActive) : 20
+    const corridorLeniency = guardLeniencyFromPeaceCorridor(world, guardKingdomId)
+    const repHostility = legalPolicy
+      ? effectiveGuardHostilityReputation(legalPolicy, manhuntActive) - corridorLeniency.reputation
+      : -20
+    const bountyHostility = legalPolicy
+      ? effectiveGuardHostilityBounty(legalPolicy, manhuntActive) + corridorLeniency.bounty
+      : 20
     const criminalHeat = getPlayerBounty(world)
     if (player.reputation <= repHostility || criminalHeat >= bountyHostility) {
       const chaseRadiusBase = patrolFocus >= 0.75 ? 6 : patrolFocus >= 0.5 ? 5 : 4
@@ -558,7 +544,7 @@ export const advanceWorldTurn = (world: World, seedOffset = 0): string[] => {
     if (bounty > 0 && world.tiles[player.location].settlementId && world.seasonTurn % 5 === 0) {
       const legalPolicy = legalPolicyForTile(world, player.location)
       const decay = legalPolicy ? effectiveBountyDecayPerTick(legalPolicy) : 2
-      const corridorBonus = peaceDividendDecayBonusForTile(world, player.location)
+      const corridorBonus = bountyDecayBonusFromPeaceCorridor(world, player.location)
       player.meta.bounty = Math.max(0, bounty - decay - corridorBonus)
     }
     const manhuntExpires = Number(player.meta.manhuntExpiresTurn ?? -1)
@@ -778,7 +764,8 @@ export const playerRequestPardon = (world: World): string[] => {
   const gold = Math.floor(player.inventory.gold_ore ?? 0)
   const tools = Math.floor(player.inventory.tools ?? 0)
   const pardonFactor = legalPolicy ? effectivePardonGoldFactor(legalPolicy) : 1
-  const requiredGold = Math.max(1, Math.ceil((bounty / 35) * pardonFactor))
+  const corridorDiscount = pardonDiscountMultiplierFromPeaceCorridor(world, settlement.kingdomId)
+  const requiredGold = Math.max(1, Math.ceil((bounty / 35) * pardonFactor * corridorDiscount))
   if (gold < requiredGold && tools < requiredGold * 3) {
     return [`Pardon requires ${requiredGold} gold ore (or ${requiredGold * 3} tools).`]
   }
@@ -796,6 +783,9 @@ export const playerRequestPardon = (world: World): string[] => {
   const messages = [
     `${settlement.name} authorities granted a pardon. Your bounty has been cleared.`,
   ]
+  if (corridorDiscount < 1) {
+    messages.push('Peace-corridor mediation reduced your pardon burden.')
+  }
   world.messages = [...messages, ...world.messages].slice(0, 120)
   return messages
 }

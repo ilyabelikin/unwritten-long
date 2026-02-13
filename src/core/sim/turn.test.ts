@@ -326,6 +326,37 @@ describe('turn simulation', () => {
     expect(Number(player.meta.bounty ?? 0)).toBe(0)
   })
 
+  it('peace corridors can reduce pardon cost through mediation', () => {
+    const world = generateWorld(9105)
+    const citySettlement = Object.values(world.settlements).find((settlement) => settlement.tier === 'city')
+    expect(citySettlement).toBeDefined()
+    if (!citySettlement) return
+    const player = world.characters[world.playerId]
+    player.location = citySettlement.tiles[0]
+    player.meta.bounty = 105
+    player.inventory.gold_ore = 4
+    const kingdomId = citySettlement.kingdomId
+    const partnerId = Object.keys(world.kingdoms).find((id) => id !== kingdomId)
+    expect(partnerId).toBeDefined()
+    if (!partnerId) return
+
+    world.kingdoms[kingdomId].policy.pardonGoldFactor = 1.4
+    world.kingdoms[partnerId].policy.peaceDividendUntilTurn = world.turn + 14
+    world.kingdoms[kingdomId].policy.peaceDividendUntilTurn = world.turn + 14
+    world.kingdoms[partnerId].policy.peaceDividendPartnerKingdomId = kingdomId
+    world.kingdoms[kingdomId].policy.peaceDividendPartnerKingdomId = partnerId
+    world.kingdoms[partnerId].policy.peaceDividendIntensity = 22
+    world.kingdoms[kingdomId].policy.peaceDividendIntensity = 22
+    setWarState(world, kingdomId, partnerId, false)
+    setRelation(world, kingdomId, partnerId, 18)
+
+    const messages = playerRequestPardon(world)
+    expect(messages[0]).toContain('granted a pardon')
+    expect(messages.some((line) => line.includes('mediation'))).toBe(true)
+    expect(Number(player.meta.bounty ?? 0)).toBe(0)
+    expect(player.inventory.gold_ore ?? 0).toBe(0)
+  })
+
   it('warband bandits march toward enemy kingdom settlements', () => {
     const world = generateWorld(9096)
     const [left, right] = Object.keys(world.kingdoms)

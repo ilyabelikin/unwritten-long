@@ -2,6 +2,7 @@ import { keyFor, neighborsOf, parseKey } from '../hex'
 import { SeededRng } from '../random'
 import type { Character, World } from '../types'
 import { effectiveGuardHostilityBounty, effectiveGuardHostilityReputation } from './edicts'
+import { guardLeniencyFromPeaceCorridor } from './peaceCorridor'
 
 const attackPower = (actor: Character): number => {
   const combat = actor.skills.combat ?? 1
@@ -176,8 +177,13 @@ export const isAggressiveTowards = (actor: Character, target: Character, world: 
     const manhuntKingdom = target.meta.manhuntKingdomId as string | undefined
     const manhuntExpiresTurn = Number(target.meta.manhuntExpiresTurn ?? -1)
     const manhuntActive = manhuntKingdom === guardKingdomId && manhuntExpiresTurn >= world.turn
-    const repThreshold = legalPolicy ? effectiveGuardHostilityReputation(legalPolicy, manhuntActive) : -20
-    const bountyThreshold = legalPolicy ? effectiveGuardHostilityBounty(legalPolicy, manhuntActive) : 20
+    const corridorLeniency = guardLeniencyFromPeaceCorridor(world, guardKingdomId)
+    const repThreshold = legalPolicy
+      ? effectiveGuardHostilityReputation(legalPolicy, manhuntActive) - corridorLeniency.reputation
+      : -20
+    const bountyThreshold = legalPolicy
+      ? effectiveGuardHostilityBounty(legalPolicy, manhuntActive) + corridorLeniency.bounty
+      : 20
     const bounty = Number(target.meta.bounty ?? 0)
     return target.reputation <= repThreshold || bounty >= bountyThreshold
   }

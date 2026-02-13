@@ -86,6 +86,7 @@ Then open the printed localhost URL.
 - **Boom-time contract outcomes** can reinforce or weaken active peace dividends depending on success/failure.
 - Some peace-dividend escorts now form explicit cross-border trade corridors with partner kingdoms.
 - Losing a peace-corridor caravan can sharply damage or even collapse a fragile dividend détente.
+- Corridor-active cities apply softer guard/legal pressure (more bounty decay and reduced pardon burden).
 - **Militia action**: spend tools to raise temporary local guards during dangerous periods.
 
 ## Rules implemented

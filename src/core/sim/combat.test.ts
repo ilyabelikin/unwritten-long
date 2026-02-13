@@ -125,5 +125,39 @@ describe('combat plunder outcomes', () => {
     player.meta.manhuntExpiresTurn = world.turn + 8
     expect(isAggressiveTowards(guard, player, world)).toBe(true)
   })
+
+  it('active peace corridors make guards more lenient to minor offenders', () => {
+    const world = generateWorld(7704)
+    const guard = Object.values(world.characters).find((character) => character.role === 'guard')
+    expect(guard).toBeDefined()
+    if (!guard) return
+    const guardSettlementId = guard.homeSettlementId ?? (guard.meta.guardCityId as string | undefined)
+    expect(guardSettlementId).toBeDefined()
+    if (!guardSettlementId) return
+    const kingdomId = world.settlements[guardSettlementId].kingdomId
+    const partnerId = Object.keys(world.kingdoms).find((id) => id !== kingdomId)
+    expect(partnerId).toBeDefined()
+    if (!partnerId) return
+    const player = world.characters[world.playerId]
+    player.location = guard.location
+    player.reputation = -17
+    player.meta.bounty = 17
+    const policy = world.kingdoms[kingdomId].policy
+    policy.guardHostilityReputation = -16
+    policy.guardHostilityBounty = 16
+
+    expect(isAggressiveTowards(guard, player, world)).toBe(true)
+
+    world.kingdoms[kingdomId].policy.peaceDividendUntilTurn = world.turn + 10
+    world.kingdoms[partnerId].policy.peaceDividendUntilTurn = world.turn + 10
+    world.kingdoms[kingdomId].policy.peaceDividendPartnerKingdomId = partnerId
+    world.kingdoms[partnerId].policy.peaceDividendPartnerKingdomId = kingdomId
+    world.kingdoms[kingdomId].policy.peaceDividendIntensity = 24
+    world.kingdoms[partnerId].policy.peaceDividendIntensity = 24
+    world.kingdomConflicts[[kingdomId, partnerId].sort().join('|')] = false
+    world.kingdomRelations[[kingdomId, partnerId].sort().join('|')] = 12
+
+    expect(isAggressiveTowards(guard, player, world)).toBe(false)
+  })
 })
 

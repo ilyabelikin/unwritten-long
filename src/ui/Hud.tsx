@@ -15,6 +15,7 @@ interface HudProps {
   onSetMapOverlay: (overlay: MapOverlayMode) => void
   onDonateSupplies: () => void
   onSponsorTreaty: () => void
+  onRequestPardon: () => void
   onSaveGame: () => void
   onLoadGame: () => void
   onConfirmRobbery: (confirm: boolean) => void
@@ -38,6 +39,7 @@ export const Hud = ({
   onSetMapOverlay,
   onDonateSupplies,
   onSponsorTreaty,
+  onRequestPardon,
   onSaveGame,
   onLoadGame,
   onConfirmRobbery,
@@ -105,6 +107,7 @@ export const Hud = ({
             <div className="button-row">
               <button onClick={onDonateSupplies}>Donate Supplies (1 AP)</button>
               <button onClick={onSponsorTreaty}>Sponsor Treaty (2 AP)</button>
+              <button onClick={onRequestPardon}>Request Pardon (1 AP)</button>
             </div>
           </>
         ) : (

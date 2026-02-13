@@ -5,6 +5,7 @@ import {
   determineSeasonFromTurn,
   movementCost,
   playerDonateSupplies,
+  playerRequestPardon,
   playerRob,
   playerSponsorTreaty,
 } from './turn'
@@ -215,6 +216,24 @@ describe('turn simulation', () => {
     const endDistance = Math.abs(parseKey(guard.location).q - parseKey(destination).q) +
       Math.abs(parseKey(guard.location).r - parseKey(destination).r)
     expect(endDistance).toBeLessThanOrEqual(startDistance)
+  })
+
+  it('city pardon clears bounty when payment is provided', () => {
+    const world = generateWorld(9095)
+    const citySettlement = Object.values(world.settlements).find((settlement) => settlement.tier === 'city')
+    expect(citySettlement).toBeDefined()
+    if (!citySettlement) return
+    const player = world.characters[world.playerId]
+    player.location = citySettlement.tiles[0]
+    player.meta.bounty = 42
+    player.inventory.gold_ore = 3
+    const reputationBefore = player.reputation
+
+    const messages = playerRequestPardon(world)
+    expect(messages[0]).toContain('granted a pardon')
+    expect(Number(player.meta.bounty ?? 0)).toBe(0)
+    expect(player.reputation).toBeGreaterThan(reputationBefore)
+    expect(player.inventory.gold_ore ?? 0).toBeLessThan(3)
   })
 })
 

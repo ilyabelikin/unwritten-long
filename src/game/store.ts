@@ -6,6 +6,7 @@ import {
   moveCharacter,
   playerAttackOnTile,
   playerDonateSupplies,
+  playerRequestPardon,
   playerRob,
   playerSponsorTreaty,
 } from '../core/sim/turn'
@@ -27,6 +28,7 @@ interface GameState {
   setMapOverlay: (overlay: MapOverlayMode) => void
   donateSupplies: () => void
   sponsorTreaty: () => void
+  requestPardon: () => void
   saveGame: () => void
   loadGame: () => void
 }
@@ -140,6 +142,13 @@ export const useGameStore = create<GameState>((set, get) => ({
   sponsorTreaty: () => {
     const world = structuredClone(get().world)
     const messages = playerSponsorTreaty(world)
+    resolvePostActionTurn(world, messages)
+    set({ ...commitWorld(world), actionFeed: messages.length > 0 ? messages : get().actionFeed })
+  },
+
+  requestPardon: () => {
+    const world = structuredClone(get().world)
+    const messages = playerRequestPardon(world)
     resolvePostActionTurn(world, messages)
     set({ ...commitWorld(world), actionFeed: messages.length > 0 ? messages : get().actionFeed })
   },

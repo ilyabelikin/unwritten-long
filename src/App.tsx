@@ -15,6 +15,7 @@ const App = () => {
   const setMapOverlay = useGameStore((state) => state.setMapOverlay)
   const donateSupplies = useGameStore((state) => state.donateSupplies)
   const sponsorTreaty = useGameStore((state) => state.sponsorTreaty)
+  const requestPardon = useGameStore((state) => state.requestPardon)
   const saveGame = useGameStore((state) => state.saveGame)
   const loadGame = useGameStore((state) => state.loadGame)
   const confirmRobbery = useGameStore((state) => state.confirmRobbery)
@@ -39,6 +40,7 @@ const App = () => {
         onSetMapOverlay={setMapOverlay}
         onDonateSupplies={donateSupplies}
         onSponsorTreaty={sponsorTreaty}
+        onRequestPardon={requestPardon}
         onSaveGame={saveGame}
         onLoadGame={loadGame}
         onConfirmRobbery={confirmRobbery}

@@ -518,3 +518,35 @@ export const playerSponsorTreaty = (world: World): string[] => {
   return messages
 }
 
+export const playerRequestPardon = (world: World): string[] => {
+  const player = world.characters[world.playerId]
+  const settlement = currentSettlementForPlayer(world)
+  if (!player || !settlement) return ['You must be in a city to request pardon.']
+  if (settlement.tier !== 'city') return ['Only a city authority can review your crimes.']
+  if (player.ap < 1) return ['Not enough AP to request pardon.']
+  const bounty = Number(player.meta.bounty ?? 0)
+  if (bounty <= 0) return ['You are not currently wanted.']
+
+  const gold = Math.floor(player.inventory.gold_ore ?? 0)
+  const tools = Math.floor(player.inventory.tools ?? 0)
+  const requiredGold = Math.max(1, Math.ceil(bounty / 35))
+  if (gold < requiredGold && tools < requiredGold * 3) {
+    return [`Pardon requires ${requiredGold} gold ore (or ${requiredGold * 3} tools).`]
+  }
+
+  if (gold >= requiredGold) {
+    player.inventory.gold_ore = gold - requiredGold
+  } else {
+    player.inventory.tools = tools - requiredGold * 3
+  }
+
+  player.ap -= 1
+  reducePlayerBounty(world, bounty)
+  player.reputation += 4
+  const messages = [
+    `${settlement.name} authorities granted a pardon. Your bounty has been cleared.`,
+  ]
+  world.messages = [...messages, ...world.messages].slice(0, 120)
+  return messages
+}
+

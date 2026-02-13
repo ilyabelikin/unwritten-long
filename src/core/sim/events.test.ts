@@ -6,6 +6,7 @@ import {
   simulateCourtPolitics,
   tryCorruptionCrackdown,
   tryDeclareManhunt,
+  tryDemobilizeWarbandForPair,
   tryRepatriatePeaceRefugee,
   tryIssueAmnestyDecree,
   trySpawnWarRefugee,
@@ -99,6 +100,80 @@ describe('world events under conflict', () => {
       true,
     )
     expect(world.characters['return-refugee'].meta.returningHome).toBe(true)
+  })
+
+  it('strong peace dividends can demobilize frontier warbands', () => {
+    const base = generateWorld(9322)
+    const [left, right] = Object.keys(base.kingdoms)
+    const pair = [left, right].sort().join('|')
+    base.turn = 30
+    base.kingdoms[left].policy.peaceDividendUntilTurn = base.turn + 12
+    base.kingdoms[right].policy.peaceDividendUntilTurn = base.turn + 12
+    base.kingdoms[left].policy.peaceDividendPartnerKingdomId = right
+    base.kingdoms[right].policy.peaceDividendPartnerKingdomId = left
+    base.kingdoms[left].policy.peaceDividendIntensity = 36
+    base.kingdoms[right].policy.peaceDividendIntensity = 36
+    base.characters['demobilize-bandit'] = {
+      ...base.characters[base.playerId],
+      id: 'demobilize-bandit',
+      name: 'Warband',
+      role: 'bandit',
+      location: Object.values(base.settlements)[0].tiles[0],
+      homeSettlementId: undefined,
+      targetTileId: undefined,
+      alive: true,
+      inventory: {},
+      reputation: -20,
+      meta: {
+        warPair: pair,
+      },
+    }
+
+    let demobilized = false
+    for (let seed = 1; seed <= 28 && !demobilized; seed += 1) {
+      const world = structuredClone(base)
+      const message = tryDemobilizeWarbandForPair(world, new SeededRng(seed), pair)
+      const actor = world.characters['demobilize-bandit']
+      const changed =
+        actor.alive === false || actor.role === 'migrant' || actor.meta.demobilizedFromWarPair === pair
+      if (message && changed) {
+        demobilized = true
+        expect(message.includes('warband') || message.includes('laid down arms')).toBe(true)
+      }
+    }
+    expect(demobilized).toBe(true)
+  })
+
+  it('warbands are not demobilized without sufficient peace dividend intensity', () => {
+    const world = generateWorld(9323)
+    const [left, right] = Object.keys(world.kingdoms)
+    const pair = [left, right].sort().join('|')
+    world.turn = 30
+    world.kingdoms[left].policy.peaceDividendUntilTurn = world.turn + 12
+    world.kingdoms[right].policy.peaceDividendUntilTurn = world.turn + 12
+    world.kingdoms[left].policy.peaceDividendPartnerKingdomId = right
+    world.kingdoms[right].policy.peaceDividendPartnerKingdomId = left
+    world.kingdoms[left].policy.peaceDividendIntensity = 10
+    world.kingdoms[right].policy.peaceDividendIntensity = 10
+    world.characters['stable-warband'] = {
+      ...world.characters[world.playerId],
+      id: 'stable-warband',
+      name: 'Warband',
+      role: 'bandit',
+      location: Object.values(world.settlements)[0].tiles[0],
+      homeSettlementId: undefined,
+      targetTileId: undefined,
+      alive: true,
+      inventory: {},
+      reputation: -20,
+      meta: {
+        warPair: pair,
+      },
+    }
+    const message = tryDemobilizeWarbandForPair(world, new SeededRng(5), pair)
+    expect(message).toBeUndefined()
+    expect(world.characters['stable-warband'].alive).toBe(true)
+    expect(world.characters['stable-warband'].role).toBe('bandit')
   })
 
   it('can declare local manhunts against high-bounty players', () => {

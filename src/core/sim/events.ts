@@ -69,6 +69,48 @@ const peaceDividendIntensityForPair = (world: World, left: string, right: string
   return clamp(Math.min(leftPolicy.peaceDividendIntensity, rightPolicy.peaceDividendIntensity), 0, 100)
 }
 
+export const tryDemobilizeWarbandForPair = (
+  world: World,
+  rng: SeededRng,
+  pair: string,
+): string | undefined => {
+  const [left, right] = pair.split('|')
+  if (!left || !right) return undefined
+  const intensity = peaceDividendIntensityForPair(world, left, right)
+  if (intensity < 18) return undefined
+
+  const candidates = Object.values(world.characters).filter(
+    (character) =>
+      character.alive &&
+      character.role === 'bandit' &&
+      typeof character.meta.warPair === 'string' &&
+      character.meta.warPair === pair,
+  )
+  if (candidates.length === 0) return undefined
+
+  const atWar = isAtWar(world, left, right)
+  const chance = clamp(0.24 + intensity * 0.02 + (atWar ? 0 : 0.24), 0.24, 0.92)
+  if (!rng.chance(chance)) return undefined
+
+  const warband = candidates[rng.int(0, candidates.length - 1)]
+  if (rng.chance(0.45)) {
+    warband.role = 'migrant'
+    warband.name = `Disarmed ${warband.name}`
+    warband.reputation = 0
+    warband.meta = {
+      targetSettlementId: Object.values(world.settlements)
+        .filter((settlement) => settlement.kingdomId === left || settlement.kingdomId === right)
+        .sort((a, b) => b.meta.prosperity - a.meta.prosperity)[0]?.id,
+      pathProgress: 0,
+      demobilizedFromWarPair: pair,
+    }
+    return `A warband laid down arms and joined civilian migration along the ${world.kingdoms[left].name}/${world.kingdoms[right].name} corridor.`
+  }
+
+  warband.alive = false
+  return `A frontier warband dissolved as ${world.kingdoms[left].name} and ${world.kingdoms[right].name} stabilized relations.`
+}
+
 export const trySpawnWarRefugee = (world: World, rng: SeededRng, pair: string): string | undefined => {
   const [left, right] = pair.split('|')
   const peaceIntensity = peaceDividendIntensityForPair(world, left, right)
@@ -937,6 +979,18 @@ export const spawnWorldEvents = (world: World, rng: SeededRng): string[] => {
       const pair = dividendPairs[rng.int(0, dividendPairs.length - 1)]
       const returnMessage = tryRepatriatePeaceRefugee(world, rng, pair)
       if (returnMessage) messages.push(returnMessage)
+    }
+  }
+
+  if (world.turn % 6 === 0 && rng.chance(0.48)) {
+    const dividendPairs = Object.keys(world.kingdomRelations).filter((pair) => {
+      const [left, right] = pair.split('|')
+      return peaceDividendIntensityForPair(world, left, right) >= 18
+    })
+    if (dividendPairs.length > 0) {
+      const pair = dividendPairs[rng.int(0, dividendPairs.length - 1)]
+      const demobilizeMessage = tryDemobilizeWarbandForPair(world, rng, pair)
+      if (demobilizeMessage) messages.push(demobilizeMessage)
     }
   }
 

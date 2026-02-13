@@ -573,6 +573,15 @@ export const Hud = ({
                   : 'none'}
               </span>
               <span>
+                Peace dividend:{' '}
+                {kingdom.policy.peaceDividendUntilTurn >= world.turn && kingdom.policy.peaceDividendIntensity > 0
+                  ? `${kingdom.policy.peaceDividendIntensity}% with ${
+                      world.kingdoms[kingdom.policy.peaceDividendPartnerKingdomId]?.name ??
+                      kingdom.policy.peaceDividendPartnerKingdomId
+                    } until ${kingdom.policy.peaceDividendUntilTurn}`
+                  : 'none'}
+              </span>
+              <span>
                 Edict: {edictLabel(kingdom.policy.activeEdict)}
                 {kingdom.policy.activeEdict !== 'none' && kingdom.policy.edictExpiresTurn >= world.turn
                   ? ` (until ${kingdom.policy.edictExpiresTurn})`

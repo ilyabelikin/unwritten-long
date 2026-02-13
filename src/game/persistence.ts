@@ -54,6 +54,9 @@ const ensureKingdomPoliciesAndConflicts = (world: World): void => {
         factionTension: 35,
         factionTrucePair: 'none',
         factionTruceUntilTurn: -1,
+        peaceDividendUntilTurn: -1,
+        peaceDividendPartnerKingdomId: 'none',
+        peaceDividendIntensity: 0,
         activeEdict: 'none',
         edictExpiresTurn: -1,
       }
@@ -96,6 +99,15 @@ const ensureKingdomPoliciesAndConflicts = (world: World): void => {
     kingdom.policy.factionTruceUntilTurn = Number.isFinite(kingdom.policy.factionTruceUntilTurn)
       ? kingdom.policy.factionTruceUntilTurn
       : -1
+    kingdom.policy.peaceDividendUntilTurn = Number.isFinite(kingdom.policy.peaceDividendUntilTurn)
+      ? kingdom.policy.peaceDividendUntilTurn
+      : -1
+    kingdom.policy.peaceDividendPartnerKingdomId = typeof kingdom.policy.peaceDividendPartnerKingdomId === 'string'
+      ? kingdom.policy.peaceDividendPartnerKingdomId
+      : 'none'
+    kingdom.policy.peaceDividendIntensity = Number.isFinite(kingdom.policy.peaceDividendIntensity)
+      ? kingdom.policy.peaceDividendIntensity
+      : 0
     kingdom.policy.activeEdict = kingdom.policy.activeEdict ?? 'none'
     kingdom.policy.edictExpiresTurn = Number.isFinite(kingdom.policy.edictExpiresTurn)
       ? kingdom.policy.edictExpiresTurn

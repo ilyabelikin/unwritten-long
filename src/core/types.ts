@@ -148,6 +148,9 @@ export interface Kingdom {
     factionTension: number
     factionTrucePair: string
     factionTruceUntilTurn: number
+    peaceDividendUntilTurn: number
+    peaceDividendPartnerKingdomId: string
+    peaceDividendIntensity: number
     activeEdict: 'none' | 'martial_law' | 'tax_relief' | 'trade_fair'
     edictExpiresTurn: number
   }

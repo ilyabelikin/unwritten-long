@@ -58,6 +58,9 @@ describe('diplomacy simulation', () => {
       expect(kingdom.policy.factionTension).toBeGreaterThanOrEqual(0)
       expect(typeof kingdom.policy.factionTrucePair).toBe('string')
       expect(Number.isFinite(kingdom.policy.factionTruceUntilTurn)).toBe(true)
+      expect(Number.isFinite(kingdom.policy.peaceDividendUntilTurn)).toBe(true)
+      expect(typeof kingdom.policy.peaceDividendPartnerKingdomId).toBe('string')
+      expect(kingdom.policy.peaceDividendIntensity).toBeGreaterThanOrEqual(0)
       expect(['none', 'martial_law', 'tax_relief', 'trade_fair']).toContain(kingdom.policy.activeEdict)
     }
   })

@@ -31,6 +31,7 @@ A browser-based turn-based hex adventure simulation with:
 - Truce summits now appear as multi-stage mandate chains with locked follow-up objectives.
 - Cross-kingdom diplomatic summit chains can appear for tense/war-torn pairs and stage ceasefire diplomacy.
 - Peace opposition incidents can emerge around diplomatic summits (war hawk sabotage vs reformer counterpressure mandates).
+- Successful diplomatic summit chains now grant temporary peace dividends that stimulate local economies.
 
 ## Tech
 
@@ -78,6 +79,7 @@ Then open the printed localhost URL.
 - **Diplomatic summit contracts** run as staged chains that improve inter-kingdom relations on completion.
 - **Peace-opposition mandates** can raise or sink summit relations depending on completion/expiry outcomes.
 - **Summit chain stages** unlock sequentially and can collapse if a critical stage expires.
+- **Peace dividend status** is shown per kingdom (partner, intensity, and expiry turn).
 - **Militia action**: spend tools to raise temporary local guards during dangerous periods.
 
 ## Rules implemented
@@ -99,6 +101,7 @@ Then open the printed localhost URL.
 - Completing a full summit chain grants a lasting détente effect (lower tension, higher court stability).
 - Completing diplomatic summit chains can end wars once relations recover past ceasefire thresholds.
 - Failing active peace-opposition responses can drag relations back down and destabilize summit momentum.
+- Active peace dividends improve caravan viability, strengthen prosperity drift, and reduce food stress pressure.
 - HP ≤ 0 resolves to death/survival rules; city visit restores HP to full.
 - Bears mostly hibernate in winter, with rare aggressive wake-ups.
 - Seasonal crop cycle and food stress drive migration/growth/decline pressure in settlements.

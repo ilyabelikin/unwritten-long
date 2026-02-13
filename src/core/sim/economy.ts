@@ -8,6 +8,13 @@ import { effectiveTaxRate } from './edicts'
 import type { BuildingType, Character, CropStage, Good, Settlement, SettlementTier, World } from '../types'
 import { addGoods, clamp, consumeGoods, createGoodRecord } from '../utils'
 
+const peaceDividendIntensityForKingdom = (world: World, kingdomId: string): number => {
+  const policy = world.kingdoms[kingdomId]?.policy
+  if (!policy) return 0
+  if (policy.peaceDividendUntilTurn < world.turn) return 0
+  return clamp(policy.peaceDividendIntensity, 0, 100)
+}
+
 const seasonProductionMultiplier = (
   settlement: Settlement,
   world: World,
@@ -546,6 +553,7 @@ const spawnCaravan = (
 
   const homeKingdom = world.kingdoms[settlement.kingdomId]
   const homeTradeStance = homeKingdom?.policy.tradeStance ?? 'balanced'
+  const peaceDividendIntensity = peaceDividendIntensityForKingdom(world, settlement.kingdomId)
 
   let bestDeal:
     | {
@@ -588,7 +596,8 @@ const spawnCaravan = (
       if (tradePath.length < 2) continue
       const routeDanger = tradePath.reduce((total, tileId) => total + (dangerByTile[tileId] ?? 0), 0)
       const riskCost = routeDanger * 0.9
-      const margin = (sellPrice - buyPrice * (1 + tariff)) * qty - riskCost
+      const peaceDividendMargin = peaceDividendIntensity * 0.18
+      const margin = (sellPrice - buyPrice * (1 + tariff)) * qty - riskCost + peaceDividendMargin
       if (margin <= 6) continue
       if (!bestDeal || margin > (bestDeal.sellPrice - bestDeal.buyPrice * (1 + bestDeal.tariff)) * bestDeal.qty) {
         bestDeal = { source: other, good, qty, buyPrice, sellPrice, tariff, path: tradePath }
@@ -657,6 +666,21 @@ const spawnCaravan = (
 
 export const simulateEconomyTurn = (world: World, rng: SeededRng): string[] => {
   const messages: string[] = []
+  for (const kingdom of Object.values(world.kingdoms)) {
+    const policy = kingdom.policy
+    if (policy.peaceDividendUntilTurn < 0) continue
+    if (policy.peaceDividendUntilTurn < world.turn) {
+      policy.peaceDividendUntilTurn = -1
+      policy.peaceDividendPartnerKingdomId = 'none'
+      policy.peaceDividendIntensity = 0
+      messages.push(`${kingdom.name}'s post-summit trade boom has tapered off.`)
+      continue
+    }
+    const partner = world.kingdoms[policy.peaceDividendPartnerKingdomId]
+    if (!partner || partner.id === kingdom.id) {
+      policy.peaceDividendPartnerKingdomId = 'none'
+    }
+  }
   for (const settlement of Object.values(world.settlements)) {
     const population = settlement.populationIds.filter((id) => world.characters[id]?.alive).length
     const seasonalNeedMultiplier =
@@ -783,6 +807,13 @@ export const simulateEconomyTurn = (world: World, rng: SeededRng): string[] => {
       0,
       100,
     )
+    const peaceDividend = peaceDividendIntensityForKingdom(world, settlement.kingdomId)
+    if (peaceDividend > 0) {
+      const boomFactor = peaceDividend / 100
+      settlement.treasury += Math.round((2 + population * 0.08) * boomFactor * 100) / 100
+      settlement.meta.prosperity = clamp(settlement.meta.prosperity + 0.7 + boomFactor * 1.1, 0, 100)
+      settlement.meta.foodStress = clamp(settlement.meta.foodStress - (0.4 + boomFactor * 1.4), 0, 100)
+    }
     if (hungryRatio > 0.22 && world.turn % 6 === 0) {
       sendHungryMigrant(world, settlement, rng, messages)
     }

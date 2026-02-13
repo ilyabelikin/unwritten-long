@@ -130,6 +130,38 @@ describe('economy simulation', () => {
     expect(settlement.needs.wood).toBeGreaterThanOrEqual(summerWoodNeed)
   })
 
+  it('active peace dividends boost prosperity and treasury outcomes', () => {
+    const withDividend = generateWorld(2235)
+    const withoutDividend = generateWorld(2235)
+    const settlementId = Object.keys(withDividend.settlements)[0]
+    const settlementA = withDividend.settlements[settlementId]
+    const settlementB = withoutDividend.settlements[settlementId]
+    const kingdomId = settlementA.kingdomId
+
+    withDividend.turn = 5
+    withoutDividend.turn = 5
+    settlementA.meta.prosperity = 30
+    settlementB.meta.prosperity = 30
+    settlementA.meta.foodStress = 22
+    settlementB.meta.foodStress = 22
+    settlementA.treasury = 20
+    settlementB.treasury = 20
+    withDividend.kingdoms[kingdomId].policy.peaceDividendUntilTurn = withDividend.turn + 8
+    withDividend.kingdoms[kingdomId].policy.peaceDividendIntensity = 30
+    withDividend.kingdoms[kingdomId].policy.peaceDividendPartnerKingdomId =
+      Object.keys(withDividend.kingdoms).find((id) => id !== kingdomId) ?? 'none'
+    withoutDividend.kingdoms[kingdomId].policy.peaceDividendUntilTurn = -1
+    withoutDividend.kingdoms[kingdomId].policy.peaceDividendIntensity = 0
+    withoutDividend.kingdoms[kingdomId].policy.peaceDividendPartnerKingdomId = 'none'
+
+    simulateEconomyTurn(withDividend, new SeededRng(77))
+    simulateEconomyTurn(withoutDividend, new SeededRng(77))
+
+    expect(settlementA.treasury).toBeGreaterThan(settlementB.treasury)
+    expect(settlementA.meta.prosperity).toBeGreaterThan(settlementB.meta.prosperity)
+    expect(settlementA.meta.foodStress).toBeLessThan(settlementB.meta.foodStress)
+  })
+
   it('spawns caravans at source settlements for travel back home', () => {
     const world = generateWorld(2234)
     const settlements = Object.values(world.settlements)

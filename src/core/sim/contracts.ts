@@ -1045,9 +1045,24 @@ const handleDiplomaticSummitChainProgress = (world: World, contract: Contract): 
     if (isAtWar(world, contract.issuerKingdomId, partner) && updated >= -6) {
       setWarState(world, contract.issuerKingdomId, partner, false)
     }
+    const issuerPolicy = world.kingdoms[contract.issuerKingdomId]?.policy
+    const partnerPolicy = world.kingdoms[partner]?.policy
+    const dividendUntil = world.turn + 20
+    const dividendIntensity = clamp(10 + contract.level * 3, 6, 40)
+    if (issuerPolicy) {
+      issuerPolicy.peaceDividendUntilTurn = Math.max(issuerPolicy.peaceDividendUntilTurn, dividendUntil)
+      issuerPolicy.peaceDividendPartnerKingdomId = partner
+      issuerPolicy.peaceDividendIntensity = Math.max(issuerPolicy.peaceDividendIntensity, dividendIntensity)
+    }
+    if (partnerPolicy) {
+      partnerPolicy.peaceDividendUntilTurn = Math.max(partnerPolicy.peaceDividendUntilTurn, dividendUntil)
+      partnerPolicy.peaceDividendPartnerKingdomId = contract.issuerKingdomId
+      partnerPolicy.peaceDividendIntensity = Math.max(partnerPolicy.peaceDividendIntensity, dividendIntensity)
+    }
     return [
       `Diplomatic summit chain completed between ${world.kingdoms[contract.issuerKingdomId].name} and ${world.kingdoms[partner].name}.`,
       `Relations improved to ${updated}.`,
+      'A peace dividend is now boosting cross-border commerce.',
     ]
   }
   return []

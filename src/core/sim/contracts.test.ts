@@ -922,6 +922,14 @@ describe('contracts system', () => {
     const relationAfter = relationBetween(world, issuerKingdomId, partnerKingdomId)
     expect(relationAfter).toBeGreaterThan(relationBefore)
     expect(isAtWar(world, issuerKingdomId, partnerKingdomId)).toBe(false)
+    const issuerPolicy = world.kingdoms[issuerKingdomId].policy
+    const partnerPolicy = world.kingdoms[partnerKingdomId].policy
+    expect(issuerPolicy.peaceDividendUntilTurn).toBeGreaterThan(world.turn)
+    expect(partnerPolicy.peaceDividendUntilTurn).toBeGreaterThan(world.turn)
+    expect(issuerPolicy.peaceDividendPartnerKingdomId).toBe(partnerKingdomId)
+    expect(partnerPolicy.peaceDividendPartnerKingdomId).toBe(issuerKingdomId)
+    expect(issuerPolicy.peaceDividendIntensity).toBeGreaterThan(0)
+    expect(partnerPolicy.peaceDividendIntensity).toBeGreaterThan(0)
   })
 
   it('can spawn peace-opposition mandates during active diplomatic summit chains', () => {

@@ -718,5 +718,100 @@ describe('contracts system', () => {
     expect(accepted[0]).toContain('accepted')
     expect(world.contracts[contractId].status).toBe('active')
   })
+
+  it('unlocks and resolves summit chain mandates with lasting détente effects', () => {
+    const world = generateWorld(9433)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const settlement = world.settlements[settlementId]
+    const kingdomId = settlement.kingdomId
+    const policy = world.kingdoms[kingdomId].policy
+    policy.factionTension = 78
+    policy.courtStability = 38
+    policy.factionTrucePair = 'merchant_bloc|reformers'
+    policy.factionTruceUntilTurn = world.turn + 12
+    world.playerCourtFavor.merchant_bloc = 14
+    world.playerCourtFavor.reformers = 12
+
+    const stage1Id = `summit-stage1-${world.turn}`
+    const stage2Id = `summit-stage2-${world.turn}`
+    world.contracts[stage1Id] = {
+      id: stage1Id,
+      settlementId,
+      issuerKingdomId: kingdomId,
+      kind: 'deliver_food',
+      level: 2,
+      status: 'available',
+      good: 'grain',
+      requiredAmount: 4,
+      progress: 0,
+      rewardReputation: 8,
+      rewardBountyReduction: 5,
+      rewardGoods: { tools: 1 },
+      expiresTurn: world.turn + 20,
+      meta: {
+        truceIncident: true,
+        trucePair: 'merchant_bloc|reformers',
+        summitChainId: 'summit-test-chain',
+        summitStage: 1,
+        summitTotalStages: 2,
+        locked: false,
+        courtFaction: 'merchant_bloc',
+        rivalFaction: 'reformers',
+        minCourtFavorByFaction: { merchant_bloc: 10, reformers: 10 },
+      },
+    }
+    world.contracts[stage2Id] = {
+      id: stage2Id,
+      settlementId,
+      issuerKingdomId: kingdomId,
+      kind: 'deliver_food',
+      level: 3,
+      status: 'available',
+      good: 'grain',
+      requiredAmount: 5,
+      progress: 0,
+      rewardReputation: 10,
+      rewardBountyReduction: 7,
+      rewardGoods: { iron_ingot: 1 },
+      expiresTurn: world.turn + 22,
+      meta: {
+        truceIncident: true,
+        trucePair: 'merchant_bloc|reformers',
+        summitChainId: 'summit-test-chain',
+        summitStage: 2,
+        summitTotalStages: 2,
+        locked: true,
+        courtFaction: 'merchant_bloc',
+        rivalFaction: 'reformers',
+        minCourtFavorByFaction: { merchant_bloc: 11, reformers: 11 },
+      },
+    }
+
+    const locked = playerAcceptContract(world, stage2Id)
+    expect(locked[0]).toContain('locked')
+
+    player.inventory.grain = 12
+    const beforeTension = policy.factionTension
+    const beforeStability = policy.courtStability
+    const beforeMerchant = world.playerCourtFavor.merchant_bloc
+    const beforeReformers = world.playerCourtFavor.reformers
+
+    playerAcceptContract(world, stage1Id)
+    const stage1Done = playerProgressContract(world)
+    expect(stage1Done.some((line) => line.includes('Summit mandate stage 1 complete'))).toBe(true)
+    expect(world.contracts[stage2Id].meta.locked).not.toBe(true)
+
+    playerAcceptContract(world, stage2Id)
+    const stage2Done = playerProgressContract(world)
+    expect(stage2Done.some((line) => line.includes('Truce summit chain completed'))).toBe(true)
+    expect(policy.factionTension).toBeLessThan(beforeTension)
+    expect(policy.courtStability).toBeGreaterThan(beforeStability)
+    expect(policy.factionTrucePair).toBe('none')
+    expect(world.playerCourtFavor.merchant_bloc).toBeGreaterThan(beforeMerchant)
+    expect(world.playerCourtFavor.reformers).toBeGreaterThan(beforeReformers)
+  })
 })
 

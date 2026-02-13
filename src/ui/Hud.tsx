@@ -241,6 +241,12 @@ export const Hud = ({
                     {showContractFaction(activeContract.meta.courtFaction)}
                   </p>
                 )}
+                {typeof activeContract.meta.summitChainId === 'string' && (
+                  <p>
+                    Summit stage {Number(activeContract.meta.summitStage)}/
+                    {Number(activeContract.meta.summitTotalStages)}
+                  </p>
+                )}
                 {typeof activeContract.meta.rivalFaction === 'string' && (
                   <p>Rival target: {showContractFaction(activeContract.meta.rivalFaction)}</p>
                 )}
@@ -321,6 +327,12 @@ export const Hud = ({
                         )}
                         {typeof contract.meta.rivalFaction === 'string' && (
                           <p>Rival target: {showContractFaction(contract.meta.rivalFaction)}</p>
+                        )}
+                        {typeof contract.meta.summitChainId === 'string' && (
+                          <p>
+                            Summit stage {Number(contract.meta.summitStage)}/
+                            {Number(contract.meta.summitTotalStages)}
+                          </p>
                         )}
                         {contract.meta.truceIncident === true && <p>Truce summit objective</p>}
                         {contract.meta.courtPatronage === true && (

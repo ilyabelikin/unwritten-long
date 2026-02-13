@@ -553,7 +553,9 @@ export const simulateContractBoardTurn = (world: World, rng: SeededRng): string[
     if (contract.status === 'completed' || contract.status === 'expired') continue
     if (world.turn > contract.expiresTurn) {
       const wasActive = contract.status === 'active'
-      const chainId = contract.meta.campaignChainId as string | undefined
+      const campaignChainId = contract.meta.campaignChainId as string | undefined
+      const summitChainId = contract.meta.summitChainId as string | undefined
+      const chainId = campaignChainId ?? summitChainId
       contract.status = 'expired'
       if (contract.meta.campaign) {
         world.campaignProgress[contract.issuerKingdomId] = Math.max(
@@ -565,7 +567,7 @@ export const simulateContractBoardTurn = (world: World, rng: SeededRng): string[
         for (const sibling of Object.values(world.contracts)) {
           if (sibling.id === contract.id) continue
           if (sibling.status === 'completed' || sibling.status === 'expired') continue
-          if (sibling.meta.campaignChainId === chainId) {
+          if (sibling.meta.campaignChainId === chainId || sibling.meta.summitChainId === chainId) {
             sibling.status = 'expired'
           }
         }
@@ -589,8 +591,19 @@ export const simulateContractBoardTurn = (world: World, rng: SeededRng): string[
           }
         }
         messages.push(`Contract ${contract.id} expired before completion.`)
-        if (chainId) {
+        if (campaignChainId) {
           messages.push('A royal campaign chain collapsed after missing critical objectives.')
+        }
+        if (summitChainId) {
+          const policy = world.kingdoms[contract.issuerKingdomId]?.policy
+          if (policy) {
+            policy.factionTension = clamp(policy.factionTension + 10, 0, 100)
+            if (policy.factionTrucePair !== 'none' && policy.factionTruceUntilTurn >= world.turn) {
+              policy.factionTrucePair = 'none'
+              policy.factionTruceUntilTurn = -1
+            }
+          }
+          messages.push('A faction truce summit chain collapsed after mandates failed.')
         }
       }
     }
@@ -717,6 +730,52 @@ const handleCampaignChainProgress = (world: World, contract: Contract): string[]
   }
   return []
 }
+
+const handleSummitChainProgress = (world: World, contract: Contract): string[] => {
+  const chainId = contract.meta.summitChainId as string | undefined
+  const stage = Number(contract.meta.summitStage ?? 0)
+  const total = Number(contract.meta.summitTotalStages ?? 0)
+  if (!chainId || stage <= 0 || total <= 0) return []
+
+  const next = Object.values(world.contracts).find(
+    (candidate) =>
+      candidate.meta.summitChainId === chainId &&
+      Number(candidate.meta.summitStage ?? 0) === stage + 1 &&
+      candidate.status === 'available',
+  )
+  if (next) {
+    next.meta.locked = false
+    return [`Summit mandate stage ${stage} complete. Stage ${stage + 1} is now unlocked.`]
+  }
+
+  if (stage >= total) {
+    const policy = world.kingdoms[contract.issuerKingdomId]?.policy
+    const pair = parseCourtFactionPair(contract.meta.trucePair)
+    if (policy) {
+      policy.factionTension = clamp(policy.factionTension - 16, 0, 100)
+      policy.courtStability = clamp(policy.courtStability + 6, 0, 100)
+      if (policy.factionTrucePair !== 'none' && policy.factionTruceUntilTurn >= world.turn) {
+        policy.factionTrucePair = 'none'
+        policy.factionTruceUntilTurn = -1
+      }
+    }
+    if (pair) {
+      addCourtFavor(world, pair[0], 2)
+      addCourtFavor(world, pair[1], 2)
+      return [
+        `Truce summit chain completed for ${world.kingdoms[contract.issuerKingdomId].name}.`,
+        `${COURT_DIRECTIVE_BY_FACTION[pair[0]]} and ${COURT_DIRECTIVE_BY_FACTION[pair[1]]} standing improved.`,
+      ]
+    }
+    return [`Truce summit chain completed for ${world.kingdoms[contract.issuerKingdomId].name}.`]
+  }
+  return []
+}
+
+const handleContractChainProgress = (world: World, contract: Contract): string[] => [
+  ...handleCampaignChainProgress(world, contract),
+  ...handleSummitChainProgress(world, contract),
+]
 
 const spawnEscortCaravan = (world: World, contract: Contract, rng: SeededRng): string | undefined => {
   const origin = world.settlements[contract.settlementId]
@@ -853,7 +912,7 @@ export const progressActiveContractForPlayer = (world: World): string[] => {
     if (remaining <= 0) {
       contract.status = 'completed'
       rewardPlayerForContract(world, contract)
-      const chainMessages = handleCampaignChainProgress(world, contract)
+      const chainMessages = handleContractChainProgress(world, contract)
       return [`Contract ${contract.id} was already complete and has now been closed.`, ...chainMessages]
     }
     const available = Math.floor(player.inventory[good] ?? 0)
@@ -869,7 +928,7 @@ export const progressActiveContractForPlayer = (world: World): string[] => {
       settlement.meta.prosperity = clamp(settlement.meta.prosperity + 6, 0, 100)
       const messages = [
         `Contract ${contract.id} completed by delivering ${contract.requiredAmount} ${good}.`,
-        ...handleCampaignChainProgress(world, contract),
+        ...handleContractChainProgress(world, contract),
       ]
       world.messages = [...messages, ...world.messages].slice(0, 120)
       return messages
@@ -889,7 +948,7 @@ export const progressActiveContractForPlayer = (world: World): string[] => {
       rewardPlayerForContract(world, contract)
       const messages = [
         `Contract ${contract.id} completed. The roads feel safer.`,
-        ...handleCampaignChainProgress(world, contract),
+        ...handleContractChainProgress(world, contract),
       ]
       world.messages = [...messages, ...world.messages].slice(0, 120)
       return messages
@@ -907,7 +966,7 @@ export const progressActiveContractForPlayer = (world: World): string[] => {
       settlement.meta.prosperity = clamp(settlement.meta.prosperity + 4, 0, 100)
       const messages = [
         `Contract ${contract.id} completed. ${settlement.name} defenses held strong.`,
-        ...handleCampaignChainProgress(world, contract),
+        ...handleContractChainProgress(world, contract),
       ]
       world.messages = [...messages, ...world.messages].slice(0, 120)
       return messages
@@ -926,7 +985,7 @@ export const progressActiveContractForPlayer = (world: World): string[] => {
       settlement.meta.prosperity = clamp(settlement.meta.prosperity + 5, 0, 100)
       const messages = [
         `Contract ${contract.id} completed. Escort caravan reached destination safely.`,
-        ...handleCampaignChainProgress(world, contract),
+        ...handleContractChainProgress(world, contract),
       ]
       world.messages = [...messages, ...world.messages].slice(0, 120)
       return messages

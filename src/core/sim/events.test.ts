@@ -224,9 +224,11 @@ describe('world events under conflict', () => {
       }
       world.turn = 9
       const messages = simulateCourtPolitics(world, new SeededRng(seed))
-      const truceContract = Object.values(world.contracts).find(
-        (contract) => contract.issuerKingdomId === kingdomId && contract.meta.truceIncident === true,
-      )
+      const truceContracts = Object.values(world.contracts)
+        .filter((contract) => contract.issuerKingdomId === kingdomId && contract.meta.truceIncident === true)
+        .sort((a, b) => Number(a.meta.summitStage ?? 0) - Number(b.meta.summitStage ?? 0))
+      const truceContract = truceContracts[0]
+      const stage2 = truceContracts[1]
       if (truceContract) {
         summitSpawned = true
         expect(messages.some((line) => line.includes('truce summit'))).toBe(true)
@@ -234,6 +236,10 @@ describe('world events under conflict', () => {
         expect(policy.factionTrucePair).not.toBe('none')
         expect(policy.factionTruceUntilTurn).toBeGreaterThan(world.turn)
         expect(truceContract.meta.minCourtFavorByFaction).toBeDefined()
+        expect(typeof truceContract.meta.summitChainId).toBe('string')
+        expect(Number(truceContract.meta.summitStage)).toBe(1)
+        expect(stage2).toBeDefined()
+        expect(stage2?.meta.locked).toBe(true)
       }
     }
 

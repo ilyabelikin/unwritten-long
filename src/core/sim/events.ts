@@ -462,6 +462,12 @@ const createFactionTruceContract = (
   primaryFaction: CourtFaction,
   partnerFaction: CourtFaction,
   rng: SeededRng,
+  options?: {
+    summitChainId?: string
+    summitStage?: number
+    summitTotalStages?: number
+    forcedKind?: Contract['kind']
+  },
 ): Contract | undefined => {
   const issuer = capitalSettlementForKingdom(world, kingdomId)
   if (!issuer || openContractCountForSettlement(world, issuer.id) >= 4) return undefined
@@ -473,7 +479,7 @@ const createFactionTruceContract = (
     1,
     4,
   )
-  const kind: Contract['kind'] = rng.chance(0.5) ? 'escort_caravan' : 'deliver_food'
+  const kind: Contract['kind'] = options?.forcedKind ?? (rng.chance(0.5) ? 'escort_caravan' : 'deliver_food')
   const minStanding = clamp(6 + level, 6, 20)
   const trucePair = [primaryFaction, partnerFaction].sort().join('|')
 
@@ -507,6 +513,10 @@ const createFactionTruceContract = (
         [partnerFaction]: minStanding,
       },
       minReputation: clamp(8 + level * 2, 8, 60),
+      summitChainId: options?.summitChainId,
+      summitStage: options?.summitStage ?? 1,
+      summitTotalStages: options?.summitTotalStages ?? 1,
+      locked: (options?.summitStage ?? 1) > 1,
     },
   }
 
@@ -524,6 +534,41 @@ const createFactionTruceContract = (
   }
 
   return contract
+}
+
+const createFactionTruceSummitChain = (
+  world: World,
+  kingdomId: string,
+  primaryFaction: CourtFaction,
+  partnerFaction: CourtFaction,
+  rng: SeededRng,
+): Contract[] => {
+  const chainId = `summit-${kingdomId}-${world.turn}-${rng.int(100, 999)}`
+  const stageKinds: [Contract['kind'], Contract['kind']] = rng.chance(0.5)
+    ? ['deliver_food', 'escort_caravan']
+    : ['escort_caravan', 'deliver_food']
+  const stage1 = createFactionTruceContract(world, kingdomId, primaryFaction, partnerFaction, rng, {
+    summitChainId: chainId,
+    summitStage: 1,
+    summitTotalStages: 2,
+    forcedKind: stageKinds[0],
+  })
+  const stage2 = createFactionTruceContract(world, kingdomId, primaryFaction, partnerFaction, rng, {
+    summitChainId: chainId,
+    summitStage: 2,
+    summitTotalStages: 2,
+    forcedKind: stageKinds[1],
+  })
+  if (!stage1 || !stage2) return []
+  stage2.level = clamp(stage2.level + 1, 1, 4)
+  stage2.rewardReputation += 3
+  stage2.rewardBountyReduction += 2
+  stage2.meta.minCourtFavorByFaction = {
+    [primaryFaction]: clamp(Number((stage2.meta.minCourtFavorByFaction as Record<string, number>)[primaryFaction] ?? 0) + 2, 6, 30),
+    [partnerFaction]: clamp(Number((stage2.meta.minCourtFavorByFaction as Record<string, number>)[partnerFaction] ?? 0) + 2, 6, 30),
+  }
+  stage2.meta.locked = true
+  return [stage1, stage2]
 }
 
 export const simulateCourtPolitics = (world: World, rng: SeededRng): string[] => {
@@ -685,14 +730,22 @@ export const simulateCourtPolitics = (world: World, rng: SeededRng): string[] =>
       const summitPartner = contenders[0]
       const truceChance = clamp(0.22 + (policy.factionTension - 64) * 0.012, 0.22, 0.7)
       if (summitPartner && rng.chance(truceChance)) {
-        const contract = createFactionTruceContract(world, kingdomId, policy.courtFaction, summitPartner, rng)
-        if (contract) {
-          world.contracts[contract.id] = contract
+        const summitContracts = createFactionTruceSummitChain(
+          world,
+          kingdomId,
+          policy.courtFaction,
+          summitPartner,
+          rng,
+        )
+        if (summitContracts.length > 0) {
+          for (const contract of summitContracts) {
+            world.contracts[contract.id] = contract
+          }
           policy.factionTrucePair = [policy.courtFaction, summitPartner].sort().join('|')
           policy.factionTruceUntilTurn = world.turn + 10
           policy.factionTension = clamp(policy.factionTension - 14, 0, 100)
           messages.push(
-            `${kingdom.name} hosted a truce summit between ${factionLabel(policy.courtFaction)} and ${factionLabel(summitPartner)}.`,
+            `${kingdom.name} hosted a truce summit between ${factionLabel(policy.courtFaction)} and ${factionLabel(summitPartner)} with staged mandates.`,
           )
         }
       }

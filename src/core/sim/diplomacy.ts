@@ -177,44 +177,76 @@ const applyPeaceDividendEffects = (world: World, messages: string[]): void => {
   }
 }
 
-const applyDiplomaticIncident = (world: World, rng: SeededRng, messages: string[]): void => {
-  if (world.turn % 18 !== 0) return
-  const pairs = Object.keys(world.kingdomRelations)
-  if (pairs.length === 0) return
-  const chosen = pairs[rng.int(0, pairs.length - 1)]
-  const [left, right] = chosen.split('|')
+export const resolveDiplomaticIncidentForPair = (
+  world: World,
+  left: string,
+  right: string,
+  rng: SeededRng,
+): string[] => {
+  const messages: string[] = []
   const relation = relationBetween(world, left, right)
   const leftKingdom = world.kingdoms[left]
   const rightKingdom = world.kingdoms[right]
-  if (!leftKingdom || !rightKingdom) return
+  if (!leftKingdom || !rightKingdom) return messages
 
   const leftCapital = capitalSettlement(world, left)
   const rightCapital = capitalSettlement(world, right)
+  const corridorIntensity = bilateralPeaceDividendIntensity(world, left, right)
 
   if (!isAtWar(world, left, right) && relation >= 42) {
-    const bonus = rng.int(12, 28)
+    const corridorBonus = corridorIntensity > 0 ? clamp(Math.round(corridorIntensity * 0.35), 2, 12) : 0
+    const bonus = rng.int(12, 28) + corridorBonus
     if (leftCapital) leftCapital.treasury += bonus
     if (rightCapital) rightCapital.treasury += bonus
-    setRelation(world, left, right, relation + 8)
+    const relationGain = corridorIntensity >= 18 ? 10 : 8
+    setRelation(world, left, right, relation + relationGain)
     messages.push(
-      `${leftKingdom.name} and ${rightKingdom.name} signed a trade charter (+${bonus} treasury each).`,
+      `${leftKingdom.name} and ${rightKingdom.name} signed a trade charter (+${bonus} treasury each)${
+        corridorBonus > 0 ? ' with corridor tariff concessions' : ''
+      }.`,
     )
-    return
+    return messages
   }
 
   if (!isAtWar(world, left, right) && relation <= -22) {
+    if (corridorIntensity >= 18) {
+      const mediationChance = clamp(0.35 + corridorIntensity * 0.015, 0.35, 0.85)
+      if (rng.chance(mediationChance)) {
+        const minorLoss = rng.int(1, 4)
+        if (leftCapital) leftCapital.treasury = Math.max(0, leftCapital.treasury - minorLoss)
+        if (rightCapital) rightCapital.treasury = Math.max(0, rightCapital.treasury - minorLoss)
+        setRelation(world, left, right, relation + 4)
+        messages.push(`${leftKingdom.name} and ${rightKingdom.name} de-escalated a border dispute through corridor mediation.`)
+        return messages
+      }
+    }
     const loss = rng.int(4, 12)
     if (leftCapital) leftCapital.treasury = Math.max(0, leftCapital.treasury - loss)
     if (rightCapital) rightCapital.treasury = Math.max(0, rightCapital.treasury - loss)
     setRelation(world, left, right, relation - 10)
     messages.push(`${leftKingdom.name} and ${rightKingdom.name} suffered a violent border incident.`)
-    return
+    return messages
+  }
+
+  if (
+    !isAtWar(world, left, right) &&
+    corridorIntensity >= 22 &&
+    relation > -12 &&
+    relation < 42 &&
+    rng.chance(0.55)
+  ) {
+    const grant = rng.int(6, 14) + Math.round(corridorIntensity * 0.25)
+    if (leftCapital) leftCapital.treasury += grant
+    if (rightCapital) rightCapital.treasury += grant
+    setRelation(world, left, right, relation + 6)
+    messages.push(`${leftKingdom.name} and ${rightKingdom.name} convened a corridor council and expanded customs trust.`)
+    return messages
   }
 
   if (isAtWar(world, left, right) && relation >= -8) {
     setRelation(world, left, right, relation + 10)
     messages.push(`${leftKingdom.name} and ${rightKingdom.name} opened armistice talks.`)
-    return
+    return messages
   }
 
   if (isAtWar(world, left, right) && rng.chance(0.5)) {
@@ -223,6 +255,16 @@ const applyDiplomaticIncident = (world: World, rng: SeededRng, messages: string[
     if (rightCapital) rightCapital.meta.foodStress = clamp(rightCapital.meta.foodStress + 2, 0, 100)
     messages.push(`${leftKingdom.name} and ${rightKingdom.name} suffered war exhaustion.`)
   }
+  return messages
+}
+
+const applyDiplomaticIncident = (world: World, rng: SeededRng, messages: string[]): void => {
+  if (world.turn % 18 !== 0) return
+  const pairs = Object.keys(world.kingdomRelations)
+  if (pairs.length === 0) return
+  const chosen = pairs[rng.int(0, pairs.length - 1)]
+  const [left, right] = chosen.split('|')
+  messages.push(...resolveDiplomaticIncidentForPair(world, left, right, rng))
 }
 
 export const simulateDiplomacyTurn = (world: World, rng: SeededRng): string[] => {

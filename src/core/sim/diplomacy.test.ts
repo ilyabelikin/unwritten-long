@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { SeededRng } from '../random'
 import { generateWorld } from '../worldgen/generateWorld'
-import { isAtWar, relationBetween, setRelation, simulateDiplomacyTurn } from './diplomacy'
+import {
+  isAtWar,
+  relationBetween,
+  resolveDiplomaticIncidentForPair,
+  setRelation,
+  setWarState,
+  simulateDiplomacyTurn,
+} from './diplomacy'
 
 describe('diplomacy simulation', () => {
   it('initializes relation entries for every kingdom pair', () => {
@@ -82,6 +89,69 @@ describe('diplomacy simulation', () => {
     const treasuryAfter = capitals.reduce((total, settlement) => total + settlement.treasury, 0)
     expect(messages.some((line) => line.includes('trade charter'))).toBe(true)
     expect(treasuryAfter).toBeGreaterThan(treasuryBefore)
+  })
+
+  it('peace corridors boost trade-charter treasury outcomes', () => {
+    const base = generateWorld(9908)
+    const [left, right] = Object.keys(base.kingdoms)
+    base.turn = 18
+    setRelation(base, left, right, 62)
+    setWarState(base, left, right, false)
+
+    const withCorridor = structuredClone(base)
+    const withoutCorridor = structuredClone(base)
+    withCorridor.kingdoms[left].policy.peaceDividendPartnerKingdomId = right
+    withCorridor.kingdoms[right].policy.peaceDividendPartnerKingdomId = left
+    withCorridor.kingdoms[left].policy.peaceDividendUntilTurn = withCorridor.turn + 10
+    withCorridor.kingdoms[right].policy.peaceDividendUntilTurn = withCorridor.turn + 10
+    withCorridor.kingdoms[left].policy.peaceDividendIntensity = 32
+    withCorridor.kingdoms[right].policy.peaceDividendIntensity = 32
+
+    const leftCapitalA = withCorridor.kingdoms[left].capitalSettlementId
+    const rightCapitalA = withCorridor.kingdoms[right].capitalSettlementId
+    const leftCapitalB = withoutCorridor.kingdoms[left].capitalSettlementId
+    const rightCapitalB = withoutCorridor.kingdoms[right].capitalSettlementId
+    expect(leftCapitalA).toBeDefined()
+    expect(rightCapitalA).toBeDefined()
+    expect(leftCapitalB).toBeDefined()
+    expect(rightCapitalB).toBeDefined()
+    if (!leftCapitalA || !rightCapitalA || !leftCapitalB || !rightCapitalB) return
+
+    const beforeA = withCorridor.settlements[leftCapitalA].treasury + withCorridor.settlements[rightCapitalA].treasury
+    const beforeB =
+      withoutCorridor.settlements[leftCapitalB].treasury + withoutCorridor.settlements[rightCapitalB].treasury
+    const messagesA = resolveDiplomaticIncidentForPair(withCorridor, left, right, new SeededRng(19))
+    const messagesB = resolveDiplomaticIncidentForPair(withoutCorridor, left, right, new SeededRng(19))
+    const afterA = withCorridor.settlements[leftCapitalA].treasury + withCorridor.settlements[rightCapitalA].treasury
+    const afterB = withoutCorridor.settlements[leftCapitalB].treasury + withoutCorridor.settlements[rightCapitalB].treasury
+    expect(afterA - beforeA).toBeGreaterThan(afterB - beforeB)
+    expect(messagesA.some((line) => line.includes('corridor tariff concessions'))).toBe(true)
+    expect(messagesB.some((line) => line.includes('corridor tariff concessions'))).toBe(false)
+  })
+
+  it('corridor mediation can de-escalate border incidents', () => {
+    const base = generateWorld(9909)
+    const [left, right] = Object.keys(base.kingdoms)
+    base.turn = 18
+    setRelation(base, left, right, -28)
+    setWarState(base, left, right, false)
+    base.kingdoms[left].policy.peaceDividendPartnerKingdomId = right
+    base.kingdoms[right].policy.peaceDividendPartnerKingdomId = left
+    base.kingdoms[left].policy.peaceDividendUntilTurn = base.turn + 12
+    base.kingdoms[right].policy.peaceDividendUntilTurn = base.turn + 12
+    base.kingdoms[left].policy.peaceDividendIntensity = 40
+    base.kingdoms[right].policy.peaceDividendIntensity = 40
+
+    let deEscalated = false
+    for (let seed = 1; seed <= 36 && !deEscalated; seed += 1) {
+      const world = structuredClone(base)
+      const messages = resolveDiplomaticIncidentForPair(world, left, right, new SeededRng(seed))
+      if (messages.some((line) => line.includes('de-escalated a border dispute'))) {
+        deEscalated = true
+        expect(relationBetween(world, left, right)).toBeGreaterThan(-28)
+      }
+    }
+    expect(deEscalated).toBe(true)
   })
 
   it('active peace dividends improve bilateral relations and treasury flow', () => {

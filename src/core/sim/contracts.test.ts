@@ -163,5 +163,50 @@ describe('contracts system', () => {
     expect(result[0]).toContain('completed')
     expect(world.contracts[contractId].status).toBe('completed')
   })
+
+  it('increases kingdom campaign progress on contract completion', () => {
+    const world = generateWorld(9415)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const settlement = world.settlements[settlementId]
+    const kingdomId = settlement.kingdomId
+    const before = world.campaignProgress[kingdomId] ?? 0
+    const contractId = `campaign-food-${world.turn}`
+    world.contracts[contractId] = {
+      id: contractId,
+      settlementId,
+      issuerKingdomId: kingdomId,
+      kind: 'deliver_food',
+      level: 1,
+      status: 'available',
+      good: 'grain',
+      requiredAmount: 4,
+      progress: 0,
+      rewardReputation: 4,
+      rewardBountyReduction: 3,
+      rewardGoods: {},
+      expiresTurn: world.turn + 20,
+      meta: {},
+    }
+    player.inventory.grain = 5
+    playerAcceptContract(world, contractId)
+    playerProgressContract(world)
+    expect(world.campaignProgress[kingdomId]).toBeGreaterThan(before)
+  })
+
+  it('issues royal campaign contracts at high campaign progress', () => {
+    const world = generateWorld(9416)
+    const kingdomId = Object.keys(world.kingdoms)[0]
+    world.campaignProgress[kingdomId] = 6
+    world.turn = 10
+    const messages = simulateContractBoardTurn(world, new SeededRng(16))
+    const royal = Object.values(world.contracts).find(
+      (contract) => contract.issuerKingdomId === kingdomId && Boolean(contract.meta.campaign),
+    )
+    expect(royal).toBeDefined()
+    expect(messages.some((line) => line.includes('royal campaign'))).toBe(true)
+  })
 })
 

@@ -78,6 +78,15 @@ const ensureContracts = (world: World): void => {
   }
 }
 
+const ensureCampaignProgress = (world: World): void => {
+  if (!world.campaignProgress) world.campaignProgress = {}
+  for (const kingdomId of Object.keys(world.kingdoms)) {
+    if (!Number.isFinite(world.campaignProgress[kingdomId])) {
+      world.campaignProgress[kingdomId] = 0
+    }
+  }
+}
+
 export const serializeWorld = (world: World): string =>
   JSON.stringify({
     version: SAVE_VERSION,
@@ -97,6 +106,7 @@ export const deserializeWorld = (payload: string): { world?: World; timestamp?: 
     }
     ensureKingdomRelations(world)
     ensureKingdomPoliciesAndConflicts(world)
+    ensureCampaignProgress(world)
     ensureContracts(world)
     world.messages = world.messages ?? []
     return {

@@ -132,6 +132,12 @@ const contractCountForSettlement = (world: World, settlementId: string): number 
       (contract.status === 'available' || contract.status === 'active'),
   ).length
 
+const capitalSettlementForKingdom = (world: World, kingdomId: string): Settlement | undefined => {
+  const capitalId = world.kingdoms[kingdomId]?.capitalSettlementId
+  if (capitalId && world.settlements[capitalId]) return world.settlements[capitalId]
+  return Object.values(world.settlements).find((settlement) => settlement.kingdomId === kingdomId)
+}
+
 const createContractForSettlement = (
   world: World,
   settlement: Settlement,
@@ -145,8 +151,13 @@ const createContractForSettlement = (
   const pressure =
     settlement.meta.foodStress > 18 ||
     settlement.needs.grain + settlement.needs.fish > settlement.stockpile.grain + settlement.stockpile.fish
+  const campaignRank = Math.floor((world.campaignProgress[settlement.kingdomId] ?? 0) / 3)
   const baseLevel = settlement.tier === 'city' ? 3 : settlement.tier === 'town' ? 2 : 1
-  const level = clamp(baseLevel + (hasWar ? 1 : 0) + (settlement.meta.foodStress > 35 ? 1 : 0), 1, 4)
+  const level = clamp(
+    baseLevel + campaignRank + (hasWar ? 1 : 0) + (settlement.meta.foodStress > 35 ? 1 : 0),
+    1,
+    4,
+  )
   if (hasWar && settlement.tier !== 'hamlet' && rng.chance(0.5)) {
     return createDefendContract(world, settlement, rng, level)
   }
@@ -173,9 +184,42 @@ export const simulateContractBoardTurn = (world: World, rng: SeededRng): string[
     if (world.turn > contract.expiresTurn) {
       const wasActive = contract.status === 'active'
       contract.status = 'expired'
+      if (contract.meta.campaign) {
+        world.campaignProgress[contract.issuerKingdomId] = Math.max(
+          0,
+          (world.campaignProgress[contract.issuerKingdomId] ?? 0) - 1,
+        )
+      }
       if (wasActive) {
         messages.push(`Contract ${contract.id} expired before completion.`)
       }
+    }
+  }
+
+  if (world.turn % 10 === 0) {
+    for (const kingdomId of Object.keys(world.kingdoms)) {
+      const progress = world.campaignProgress[kingdomId] ?? 0
+      if (progress < 4) continue
+      const capital = capitalSettlementForKingdom(world, kingdomId)
+      if (!capital) continue
+      const existingCampaign = Object.values(world.contracts).some(
+        (contract) =>
+          contract.issuerKingdomId === kingdomId &&
+          contract.status !== 'completed' &&
+          contract.status !== 'expired' &&
+          Boolean(contract.meta.campaign),
+      )
+      if (existingCampaign) continue
+
+      const contract = rng.chance(0.5)
+        ? createDefendContract(world, capital, rng, 4)
+        : createEscortContract(world, capital, rng, 4)
+      contract.meta.campaign = true
+      contract.rewardReputation += 5
+      contract.rewardBountyReduction += 5
+      contract.rewardGoods.gold_ore = (contract.rewardGoods.gold_ore ?? 0) + 1
+      world.contracts[contract.id] = contract
+      messages.push(`${capital.name} issued a high-priority royal campaign contract.`)
     }
   }
 
@@ -206,6 +250,8 @@ const rewardPlayerForContract = (world: World, contract: Contract): void => {
   const player = world.characters[world.playerId]
   player.reputation += contract.rewardReputation
   player.meta.bounty = Math.max(0, Number(player.meta.bounty ?? 0) - contract.rewardBountyReduction)
+  world.campaignProgress[contract.issuerKingdomId] =
+    (world.campaignProgress[contract.issuerKingdomId] ?? 0) + (contract.meta.campaign ? 2 : 1)
   for (const [good, qty] of Object.entries(contract.rewardGoods) as [Good, number][]) {
     if (!qty || qty <= 0) continue
     player.inventory[good] = (player.inventory[good] ?? 0) + qty

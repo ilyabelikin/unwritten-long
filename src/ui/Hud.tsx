@@ -344,6 +344,7 @@ export const Hud = ({
               </span>
               <span>Tax: {(kingdom.policy.taxRate * 100).toFixed(0)}%</span>
               <span>Patrol: {kingdom.policy.patrolFocus.toFixed(2)}</span>
+              <span>Campaign: {world.campaignProgress[kingdom.id] ?? 0}</span>
             </div>
           ))}
         </div>

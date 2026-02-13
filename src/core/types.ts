@@ -169,6 +169,7 @@ export interface World {
   kingdoms: Record<string, Kingdom>
   kingdomRelations: Record<string, number>
   kingdomConflicts: Record<string, boolean>
+  campaignProgress: Record<string, number>
   contracts: Record<string, Contract>
   playerId: string
   turn: number

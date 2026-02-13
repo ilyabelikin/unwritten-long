@@ -474,6 +474,13 @@ export const generateWorld = (seed = Date.now() % 100000): World => {
   const kingdomIds = Object.keys(kingdoms)
   const kingdomRelations = buildInitialRelations(kingdomIds, rng)
   const kingdomConflicts = buildInitialConflicts(kingdomIds, kingdomRelations)
+  const campaignProgress = kingdomIds.reduce(
+    (acc, id) => {
+      acc[id] = 0
+      return acc
+    },
+    {} as Record<string, number>,
+  )
 
   const worldSkeleton: World = {
     seed,
@@ -485,6 +492,7 @@ export const generateWorld = (seed = Date.now() % 100000): World => {
     kingdoms,
     kingdomRelations,
     kingdomConflicts,
+    campaignProgress,
     contracts: {},
     characters: {},
     playerId: '',

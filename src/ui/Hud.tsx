@@ -148,6 +148,18 @@ export const Hud = ({
             {activeContract.progress}/{activeContract.requiredAmount}
           </p>
         )}
+        {activeContract?.kind === 'defend_settlement' && (
+          <p>
+            Contract target: defeat hostile forces {activeContract.progress}/{activeContract.requiredAmount}.
+          </p>
+        )}
+        {activeContract?.kind === 'escort_caravan' && (
+          <p>
+            Contract target: escort caravan. Contact{' '}
+            {activeContract.meta.playerMetCaravan ? 'made' : 'pending'} · Delivery{' '}
+            {activeContract.meta.caravanDelivered ? 'complete' : 'pending'}.
+          </p>
+        )}
       </section>
 
       <section className="panel">
@@ -160,6 +172,12 @@ export const Hud = ({
                 <p>
                   Active: {activeContract.kind} · {activeContract.progress}/{activeContract.requiredAmount}
                 </p>
+                {activeContract.kind === 'escort_caravan' && (
+                  <p>
+                    Escort status: {activeContract.meta.playerMetCaravan ? 'contact made' : 'find caravan'} ·{' '}
+                    {activeContract.meta.caravanDelivered ? 'delivered' : 'in transit'}
+                  </p>
+                )}
                 <p>
                   Reward: +{activeContract.rewardReputation} rep · -{activeContract.rewardBountyReduction} bounty
                 </p>
@@ -172,7 +190,11 @@ export const Hud = ({
                     <p>
                       {contract.kind === 'deliver_food'
                         ? `Deliver ${contract.requiredAmount} ${contract.good}`
-                        : `Hunt ${contract.requiredAmount} bandit group`}
+                        : contract.kind === 'hunt_bandits'
+                          ? `Hunt ${contract.requiredAmount} bandit group`
+                          : contract.kind === 'escort_caravan'
+                            ? `Escort caravan carrying ${contract.requiredAmount} ${contract.good}`
+                            : `Defend settlement from ${contract.requiredAmount} hostile groups`}
                     </p>
                     <p>
                       Reward: +{contract.rewardReputation} rep · {Object.entries(contract.rewardGoods)

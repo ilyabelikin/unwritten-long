@@ -12,7 +12,7 @@ export type Resource =
 
 export type SettlementTier = 'hamlet' | 'village' | 'town' | 'city'
 export type CropStage = 'dormant' | 'sown' | 'growing' | 'ripe'
-export type ContractKind = 'deliver_food' | 'hunt_bandits'
+export type ContractKind = 'deliver_food' | 'hunt_bandits' | 'escort_caravan' | 'defend_settlement'
 export type ContractStatus = 'available' | 'active' | 'completed' | 'expired'
 export type BuildingType =
   | 'village_home'

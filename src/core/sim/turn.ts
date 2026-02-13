@@ -181,6 +181,11 @@ const applyTraderDelivery = (world: World, trader: Character, messages: string[]
   const payment = Math.min(home.treasury, sellPrice * qty)
   home.treasury -= payment
   home.stockpile[good] += qty
+  const contractId = trader.meta.contractId as string | undefined
+  if (contractId && world.contracts[contractId]) {
+    world.contracts[contractId].meta.caravanDelivered = true
+    world.contracts[contractId].progress = world.contracts[contractId].requiredAmount
+  }
   trader.meta.state = 'finished'
   trader.alive = false
   messages.push(`${home.name} caravan delivered ${qty} ${good}.`)
@@ -440,6 +445,21 @@ export const advanceWorldTurn = (world: World, seedOffset = 0): string[] => {
     if (char.alive) char.ap = char.maxAp
   })
 
+  const activeEscortContract = Object.values(world.contracts).find(
+    (contract) => contract.status === 'active' && contract.assignedCharacterId === world.playerId && contract.kind === 'escort_caravan',
+  )
+  if (activeEscortContract) {
+    const caravanId = activeEscortContract.meta.caravanId as string | undefined
+    const caravan = caravanId ? world.characters[caravanId] : undefined
+    const player = world.characters[world.playerId]
+    if (caravan?.alive && player?.alive) {
+      const distance = hexDistance(parseKey(player.location), parseKey(caravan.location))
+      if (distance <= 1) {
+        activeEscortContract.meta.playerMetCaravan = true
+      }
+    }
+  }
+
   for (let apStep = 0; apStep < 4; apStep += 1) {
     for (const actor of Object.values(world.characters)) {
       if (!actor.alive || actor.id === world.playerId) continue
@@ -471,6 +491,18 @@ export const advanceWorldTurn = (world: World, seedOffset = 0): string[] => {
 
   if (player?.alive) player.ap = player.maxAp
   world.pendingRobberyCharacterId = undefined
+
+  for (const contract of Object.values(world.contracts)) {
+    if (contract.status !== 'active' || contract.kind !== 'escort_caravan') continue
+    const caravanId = contract.meta.caravanId as string | undefined
+    const caravan = caravanId ? world.characters[caravanId] : undefined
+    const delivered = Boolean(contract.meta.caravanDelivered)
+    if (!delivered && (!caravan || !caravan.alive)) {
+      contract.status = 'expired'
+      messages.push(`Escort contract ${contract.id} failed after caravan loss.`)
+    }
+  }
+
   world.messages = [...messages, ...world.messages].slice(0, 120)
   return messages
 }

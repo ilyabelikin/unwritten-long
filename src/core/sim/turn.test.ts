@@ -9,6 +9,8 @@ import {
   playerSponsorTreaty,
 } from './turn'
 import { setRelation, setWarState } from './diplomacy'
+import { parseKey } from '../hex'
+import { cityGuardSpawnTiles } from './combat'
 
 describe('turn simulation', () => {
   it('advances season correctly every 60 turns', () => {
@@ -153,6 +155,66 @@ describe('turn simulation', () => {
     expect(messages[0]).toContain('sponsored talks')
     expect(after).toBeGreaterThan(before)
     expect(world.kingdomConflicts[[localKingdom, foreign].sort().join('|')]).toBe(false)
+  })
+
+  it('guards prioritize nearby warband threats during conflict', () => {
+    const world = generateWorld(9094)
+    const guard = Object.values(world.characters).find((character) => character.role === 'guard')
+    expect(guard).toBeDefined()
+    if (!guard) return
+
+    const guardSettlementId = guard.homeSettlementId
+    expect(guardSettlementId).toBeDefined()
+    if (!guardSettlementId) return
+    const guardKingdom = world.settlements[guardSettlementId].kingdomId
+    const enemyKingdom = Object.keys(world.kingdoms).find((id) => id !== guardKingdom)
+    expect(enemyKingdom).toBeDefined()
+    if (!enemyKingdom) return
+    setWarState(world, guardKingdom, enemyKingdom, true)
+    setRelation(world, guardKingdom, enemyKingdom, -70)
+
+    const guardPatrolTiles = cityGuardSpawnTiles(world)
+      .filter((tileId) => tileId !== guard.location)
+      .sort((a, b) => {
+        const ad = Math.abs(parseKey(a).q - parseKey(guard.location).q) +
+          Math.abs(parseKey(a).r - parseKey(guard.location).r)
+        const bd = Math.abs(parseKey(b).q - parseKey(guard.location).q) +
+          Math.abs(parseKey(b).r - parseKey(guard.location).r)
+        return ad - bd
+      })
+    const destination = guardPatrolTiles[0] ?? guard.location
+    world.characters['warband-test'] = {
+      id: 'warband-test',
+      name: 'Warband',
+      role: 'bandit',
+      species: 'human',
+      hp: 10,
+      maxHp: 10,
+      ap: 4,
+      maxAp: 4,
+      age: 30,
+      skills: { combat: 6 },
+      history: [],
+      traits: ['ruthless'],
+      flaws: ['reckless'],
+      reputation: -30,
+      location: destination,
+      alive: true,
+      inventory: {},
+      meta: { warPair: [guardKingdom, enemyKingdom].sort().join('|') },
+    }
+
+    const startDistance = Math.abs(parseKey(guard.location).q - parseKey(destination).q) +
+      Math.abs(parseKey(guard.location).r - parseKey(destination).r)
+    const player = world.characters[world.playerId]
+    player.reputation = 10
+    player.meta.bounty = 0
+
+    advanceWorldTurn(world, 2)
+
+    const endDistance = Math.abs(parseKey(guard.location).q - parseKey(destination).q) +
+      Math.abs(parseKey(guard.location).r - parseKey(destination).r)
+    expect(endDistance).toBeLessThanOrEqual(startDistance)
   })
 })
 

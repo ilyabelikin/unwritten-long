@@ -51,6 +51,39 @@ const randomLandTileBy = (
   return candidates[rng.int(0, candidates.length - 1)]
 }
 
+export const trySpawnWarRefugee = (world: World, rng: SeededRng, pair: string): string | undefined => {
+  const [left, right] = pair.split('|')
+  const conflictBorderTiles = world.tileOrder.filter((tileId) => {
+    const tile = world.tiles[tileId]
+    const tileKingdomId = tile.kingdomId
+    if (!tileKingdomId || (tileKingdomId !== left && tileKingdomId !== right)) return false
+    return neighborsOf(tile.coord).some((neighbor) => {
+      const neighborTile = world.tiles[keyFor(neighbor.q, neighbor.r)]
+      if (!neighborTile?.kingdomId || neighborTile.kingdomId === tileKingdomId) return false
+      return kingdomPairKey(tileKingdomId, neighborTile.kingdomId) === pair
+    })
+  })
+  const fallbackTiles = world.tileOrder.filter((tileId) => {
+    const tile = world.tiles[tileId]
+    return tile.kingdomId === left || tile.kingdomId === right
+  })
+  const refugeTargets = Object.values(world.settlements)
+    .filter((settlement) => settlement.kingdomId !== left && settlement.kingdomId !== right)
+    .sort((a, b) => b.meta.prosperity - a.meta.prosperity)
+  const spawnPool = conflictBorderTiles.length > 0 ? conflictBorderTiles : fallbackTiles
+  const spawnTile = spawnPool[rng.int(0, Math.max(0, spawnPool.length - 1))]
+  const safeTarget = refugeTargets[0]
+  if (!spawnTile || !safeTarget) return undefined
+
+  const id = `refugee-${world.turn}-${rng.int(100, 999)}`
+  const refugee = createSimpleCharacter(id, 'migrant', 'human', spawnTile, `Refugee ${rng.int(10, 99)}`)
+  refugee.meta.targetSettlementId = safeTarget.id
+  refugee.meta.refugeeFromConflict = pair
+  refugee.meta.pathProgress = 0
+  world.characters[id] = refugee
+  return `War refugees fled the ${world.kingdoms[left]?.name ?? left}/${world.kingdoms[right]?.name ?? right} frontier.`
+}
+
 export const spawnWorldEvents = (world: World, rng: SeededRng): string[] => {
   const messages: string[] = []
   const spawn = (character: Character): void => {
@@ -155,6 +188,12 @@ export const spawnWorldEvents = (world: World, rng: SeededRng): string[] => {
         )
       }
     }
+  }
+
+  if (warPairs.length > 0 && world.turn % 7 === 0 && rng.chance(0.55)) {
+    const pair = warPairs[rng.int(0, warPairs.length - 1)]
+    const refugeeMessage = trySpawnWarRefugee(world, rng, pair)
+    if (refugeeMessage) messages.push(refugeeMessage)
   }
 
   return messages

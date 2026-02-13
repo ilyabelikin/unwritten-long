@@ -106,6 +106,29 @@ const nearestHostileTarget = (world: World, actor: Character): Character | undef
   return undefined
 }
 
+const nearestThreatForGuard = (world: World, guard: Character, guardKingdomId?: string): Character | undefined => {
+  if (!guardKingdomId) return undefined
+  const threats = Object.values(world.characters)
+    .filter((candidate) => candidate.alive && candidate.id !== guard.id)
+    .filter((candidate) => candidate.role === 'monster' || candidate.role === 'bandit')
+    .filter((candidate) => {
+      if (candidate.role === 'monster') return true
+      const warPair = candidate.meta.warPair as string | undefined
+      if (warPair) {
+        const [left, right] = warPair.split('|')
+        return left === guardKingdomId || right === guardKingdomId
+      }
+      return false
+    })
+    .map((candidate) => ({
+      candidate,
+      distance: hexDistance(parseKey(guard.location), parseKey(candidate.location)),
+    }))
+    .filter((entry) => entry.distance <= 6)
+    .sort((a, b) => a.distance - b.distance)
+  return threats[0]?.candidate
+}
+
 const stepToward = (world: World, actor: Character, targetTile: string): string | undefined => {
   const options = neighborsLand(world, actor.location)
   if (options.length === 0) return undefined
@@ -210,6 +233,20 @@ const processNpcIntent = (world: World, actor: Character, rng: SeededRng, messag
       }
       return
     }
+
+    const nearbyThreat = nearestThreatForGuard(world, actor, guardKingdomId)
+    if (nearbyThreat) {
+      const step = stepToward(world, actor, nearbyThreat.location)
+      if (step && guardTiles.has(step)) {
+        const cost = movementCost(world, actor.location, step)
+        if (cost <= actor.ap) {
+          actor.location = step
+          actor.ap -= cost
+        }
+      }
+      return
+    }
+
     if (!rng.chance(Math.min(0.95, 0.35 + patrolFocus))) return
     const options = neighborsLand(world, actor.location).filter((id) => guardTiles.has(id))
     if (options.length > 0) {

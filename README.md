@@ -14,6 +14,7 @@ A browser-based turn-based hex adventure simulation with:
 - Diplomatic incident chain (trade charters, border crises, armistice pressure) affecting treasury and tensions.
 - Settlement contract board system (food deliveries and bandit hunts) with player acceptance/progression.
 - Multi-stage contract tiers including caravan escort and settlement defense objectives.
+- Kingdom campaign progression: completed contracts raise campaign standing and unlock high-priority royal objectives.
 
 ## Tech
 
@@ -45,6 +46,7 @@ Then open the printed localhost URL.
 - **Overlay selector**: switch map intel between terrain, kingdoms, economy, and danger.
 - **Civic actions in settlements**: donate supplies, sponsor diplomatic talks, and request city pardons.
 - **Contract board in settlements**: accept local contracts and report progress for rewards.
+- **Royal campaign contracts** may appear in capitals after sustained kingdom service.
 - **Militia action**: spend tools to raise temporary local guards during dangerous periods.
 
 ## Rules implemented

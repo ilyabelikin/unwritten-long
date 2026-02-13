@@ -96,3 +96,41 @@ button:hover {
   display: grid;
   gap: 0.24rem;
 }
+
+.compact-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.compact-list li {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 0.3rem;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.relation {
+  text-align: center;
+  border-radius: 999px;
+  padding: 0.05rem 0.45rem;
+  border: 1px solid transparent;
+}
+
+.relation.good {
+  background: #23412d;
+  border-color: #447a58;
+}
+
+.relation.mid {
+  background: #3a3e43;
+  border-color: #69717a;
+}
+
+.relation.bad {
+  background: #4a2525;
+  border-color: #8f4b4b;
+}

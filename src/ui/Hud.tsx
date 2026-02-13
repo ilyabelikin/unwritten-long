@@ -1,5 +1,6 @@
 import { estimateGoodPrice } from '../core/sim/economy'
 import { SPECIES_LABEL } from '../core/data/content'
+import { relationBetween } from '../core/sim/diplomacy'
 import type { Good, World } from '../core/types'
 import type { MapOverlayMode } from '../game/store'
 import './Hud.css'
@@ -41,6 +42,7 @@ export const Hud = ({
   const selectedTile = world.selectedTileId ? world.tiles[world.selectedTileId] : undefined
   const selectedCharacter = world.selectedCharacterId ? world.characters[world.selectedCharacterId] : undefined
   const selectedSettlement = selectedTile?.settlementId ? world.settlements[selectedTile.settlementId] : undefined
+  const kingdomIds = Object.keys(world.kingdoms)
 
   return (
     <aside className="hud">
@@ -122,6 +124,17 @@ export const Hud = ({
                     .join(' · ')}
                 </p>
                 <p>
+                  Diplomacy:{' '}
+                  {Object.values(world.kingdoms)
+                    .filter((kingdom) => kingdom.id !== selectedSettlement.kingdomId)
+                    .map((kingdom) => {
+                      const relation = relationBetween(world, selectedSettlement.kingdomId, kingdom.id)
+                      const mood = relation >= 35 ? 'friendly' : relation <= -25 ? 'hostile' : 'neutral'
+                      return `${kingdom.name} ${relation} (${mood})`
+                    })
+                    .join(' · ')}
+                </p>
+                <p>
                   Buildings:{' '}
                   {selectedSettlement.buildings
                     .map((building) => `${building.type} L${building.level}`)
@@ -163,6 +176,29 @@ export const Hud = ({
             <li key={`${line}-${idx}`}>{line}</li>
           ))}
         </ul>
+      </section>
+
+      <section className="panel">
+        <h2>Kingdom Diplomacy</h2>
+        {kingdomIds.length > 1 ? (
+          <ul className="compact-list">
+            {kingdomIds.flatMap((left, idx) =>
+              kingdomIds.slice(idx + 1).map((right) => {
+                const relation = relationBetween(world, left, right)
+                const style = relation >= 35 ? 'good' : relation <= -25 ? 'bad' : 'mid'
+                return (
+                  <li key={`${left}-${right}`}>
+                    <span>{world.kingdoms[left].name}</span>
+                    <span className={`relation ${style}`}>{relation}</span>
+                    <span>{world.kingdoms[right].name}</span>
+                  </li>
+                )
+              }),
+            )}
+          </ul>
+        ) : (
+          <p>Not enough kingdoms for diplomatic tracking.</p>
+        )}
       </section>
     </aside>
   )

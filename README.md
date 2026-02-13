@@ -28,6 +28,7 @@ A browser-based turn-based hex adventure simulation with:
 - Player now has separate court standing tracks (Merchant Bloc / War Hawks / Reformers).
 - High court-faction tension can now generate rivalry incidents with faction counter-mandate contracts.
 - Rival factions can now hold temporary truce summits, producing hybrid mandate contracts.
+- Truce summits now appear as multi-stage mandate chains with locked follow-up objectives.
 
 ## Tech
 
@@ -72,6 +73,7 @@ Then open the printed localhost URL.
 - **Patronage contracts** can require minimum court standing in addition to favor/reputation.
 - **Rivalry contracts** may target competing court factions and affect inter-faction standing on success/failure.
 - **Truce summit contracts** can require standing in both participating factions and grant joint standing gains.
+- **Summit chain stages** unlock sequentially and can collapse if a critical stage expires.
 - **Militia action**: spend tools to raise temporary local guards during dangerous periods.
 
 ## Rules implemented
@@ -90,6 +92,7 @@ Then open the printed localhost URL.
 - Completing court-directed contracts increases standing with that faction; failed active contracts can reduce it.
 - Rivalry mandate outcomes can raise your aligned faction standing while eroding rival faction standing.
 - Truce summit periods dampen faction tension spikes and can temporarily stabilize court politics.
+- Completing a full summit chain grants a lasting détente effect (lower tension, higher court stability).
 - HP ≤ 0 resolves to death/survival rules; city visit restores HP to full.
 - Bears mostly hibernate in winter, with rare aggressive wake-ups.
 - Seasonal crop cycle and food stress drive migration/growth/decline pressure in settlements.

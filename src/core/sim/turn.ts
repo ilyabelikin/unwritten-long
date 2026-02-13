@@ -7,7 +7,7 @@ import { performAttack, healInCities, isAggressiveTowards, cityGuardSpawnTiles }
 import { acceptContractForPlayer, progressActiveContractForPlayer, simulateContractBoardTurn } from './contracts'
 import { isAtWar, relationBetween, setRelation, setWarState, simulateDiplomacyTurn } from './diplomacy'
 import { simulateEconomyTurn, estimateGoodPrice } from './economy'
-import { spawnWorldEvents } from './events'
+import { simulateJusticeEvents, spawnWorldEvents } from './events'
 import { simulateSiegePressure } from './siege'
 import { simulateWildlifeEcology } from './wildlife'
 
@@ -268,11 +268,15 @@ const processNpcIntent = (world: World, actor: Character, rng: SeededRng, messag
       : undefined
     const legalPolicy = legalPolicyForKingdom(world, guardKingdomId)
     const patrolFocus = legalPolicy?.patrolFocus ?? 0.4
-    const repHostility = legalPolicy?.guardHostilityReputation ?? -20
-    const bountyHostility = legalPolicy?.guardHostilityBounty ?? 20
+    const manhuntKingdom = player.meta.manhuntKingdomId as string | undefined
+    const manhuntExpiresTurn = Number(player.meta.manhuntExpiresTurn ?? -1)
+    const manhuntActive = manhuntKingdom === guardKingdomId && manhuntExpiresTurn >= world.turn
+    const repHostility = (legalPolicy?.guardHostilityReputation ?? -20) + (manhuntActive ? 8 : 0)
+    const bountyHostility = Math.max(8, (legalPolicy?.guardHostilityBounty ?? 20) - (manhuntActive ? 8 : 0))
     const criminalHeat = getPlayerBounty(world)
     if (player.reputation <= repHostility || criminalHeat >= bountyHostility) {
-      const chaseRadius = patrolFocus >= 0.75 ? 6 : patrolFocus >= 0.5 ? 5 : 4
+      const chaseRadiusBase = patrolFocus >= 0.75 ? 6 : patrolFocus >= 0.5 ? 5 : 4
+      const chaseRadius = manhuntActive ? chaseRadiusBase + 1 : chaseRadiusBase
       const nearPlayer = hexDistance(parseKey(actor.location), parseKey(player.location)) <= chaseRadius
       const target = nearPlayer ? player.location : actor.location
       const step = stepToward(world, actor, target)
@@ -460,6 +464,7 @@ export const advanceWorldTurn = (world: World, seedOffset = 0): string[] => {
   messages.push(...simulateEconomyTurn(world, rng))
   messages.push(...simulateContractBoardTurn(world, rng))
   messages.push(...simulateDiplomacyTurn(world, rng))
+  messages.push(...simulateJusticeEvents(world, rng))
 
   Object.values(world.characters).forEach((char) => {
     if (char.alive) char.ap = char.maxAp
@@ -493,7 +498,9 @@ export const advanceWorldTurn = (world: World, seedOffset = 0): string[] => {
   messages.push(...simulateWildlifeEcology(world, rng))
 
   for (const actor of Object.values(world.characters)) {
-    if (!actor.alive || actor.role !== 'guard' || !actor.meta.militia) continue
+    if (!actor.alive || actor.role !== 'guard') continue
+    const isTemporary = actor.meta.militia === true || actor.meta.justiceManhunt === true
+    if (!isTemporary) continue
     const expiresTurn = Number(actor.meta.expiresTurn ?? world.turn + 1)
     if (world.turn >= expiresTurn) {
       actor.alive = false
@@ -508,6 +515,11 @@ export const advanceWorldTurn = (world: World, seedOffset = 0): string[] => {
     if (bounty > 0 && world.tiles[player.location].settlementId && world.seasonTurn % 5 === 0) {
       const decay = legalPolicyForTile(world, player.location)?.bountyDecayPerTick ?? 2
       player.meta.bounty = Math.max(0, bounty - decay)
+    }
+    const manhuntExpires = Number(player.meta.manhuntExpiresTurn ?? -1)
+    if (manhuntExpires >= 0 && manhuntExpires < world.turn) {
+      delete player.meta.manhuntKingdomId
+      delete player.meta.manhuntExpiresTurn
     }
   }
 

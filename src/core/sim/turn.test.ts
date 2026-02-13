@@ -403,5 +403,30 @@ describe('turn simulation', () => {
     expect(world.contracts[contractId].meta.playerMetCaravan).toBe(true)
     expect(player.ap).toBeLessThan(playerApBefore)
   })
+
+  it('can trigger justice manhunts on world turns for notorious players', () => {
+    const base = generateWorld(9101)
+    const player = base.characters[base.playerId]
+    const settlementId = base.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const kingdomId = base.settlements[settlementId].kingdomId
+    base.kingdoms[kingdomId].policy.guardHostilityBounty = 12
+    base.kingdoms[kingdomId].policy.guardHostilityReputation = -10
+    player.meta.bounty = 40
+    base.turn = 7
+
+    let triggered = false
+    for (let seed = 1; seed <= 24 && !triggered; seed += 1) {
+      const world = structuredClone(base)
+      const messages = advanceWorldTurn(world, seed)
+      triggered = messages.some((line) => line.includes('declared a manhunt'))
+      if (triggered) {
+        expect(world.characters[world.playerId].meta.manhuntKingdomId).toBe(kingdomId)
+      }
+    }
+
+    expect(triggered).toBe(true)
+  })
 })
 

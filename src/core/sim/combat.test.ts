@@ -116,6 +116,14 @@ describe('combat plunder outcomes', () => {
 
     policy.guardHostilityReputation = 2
     expect(isAggressiveTowards(guard, player, world)).toBe(true)
+
+    policy.guardHostilityReputation = -30
+    policy.guardHostilityBounty = 40
+    player.reputation = -23
+    player.meta.bounty = 14
+    player.meta.manhuntKingdomId = kingdomId
+    player.meta.manhuntExpiresTurn = world.turn + 8
+    expect(isAggressiveTowards(guard, player, world)).toBe(true)
   })
 })
 

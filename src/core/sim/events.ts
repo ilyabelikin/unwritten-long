@@ -1,5 +1,6 @@
 import { keyFor, neighborsOf } from '../hex'
 import { SeededRng } from '../random'
+import { clamp } from '../utils'
 import { isAtWar, kingdomPairKey } from './diplomacy'
 import type { Character, Species, World } from '../types'
 
@@ -82,6 +83,165 @@ export const trySpawnWarRefugee = (world: World, rng: SeededRng, pair: string): 
   refugee.meta.pathProgress = 0
   world.characters[id] = refugee
   return `War refugees fled the ${world.kingdoms[left]?.name ?? left}/${world.kingdoms[right]?.name ?? right} frontier.`
+}
+
+const currentSettlementForPlayer = (world: World) => {
+  const player = world.characters[world.playerId]
+  if (!player?.alive) return undefined
+  const tile = world.tiles[player.location]
+  if (!tile?.settlementId) return undefined
+  return world.settlements[tile.settlementId]
+}
+
+const kingdomInvolvedInWar = (world: World, kingdomId: string): boolean =>
+  Object.keys(world.kingdomConflicts).some((pair) => {
+    if (!world.kingdomConflicts[pair]) return false
+    const [left, right] = pair.split('|')
+    return left === kingdomId || right === kingdomId
+  })
+
+const hasActiveManhuntGuard = (world: World, kingdomId: string): boolean =>
+  Object.values(world.characters).some((character) => {
+    if (!character.alive || character.role !== 'guard') return false
+    if (character.meta.justiceManhunt !== true) return false
+    return character.meta.manhuntKingdomId === kingdomId
+  })
+
+export const tryDeclareManhunt = (
+  world: World,
+  rng: SeededRng,
+  kingdomId: string,
+): string | undefined => {
+  const player = world.characters[world.playerId]
+  const settlement = currentSettlementForPlayer(world)
+  if (!player?.alive || !settlement || settlement.kingdomId !== kingdomId) return undefined
+  const policy = world.kingdoms[kingdomId]?.policy
+  if (!policy) return undefined
+  const bounty = Number(player.meta.bounty ?? 0)
+  if (bounty < policy.guardHostilityBounty + 6) return undefined
+  if (hasActiveManhuntGuard(world, kingdomId)) return undefined
+  const spawnTile = settlement.tiles[rng.int(0, settlement.tiles.length - 1)]
+  const id = `marshal-${world.turn}-${rng.int(100, 999)}`
+  const marshal = createSimpleCharacter(id, 'guard', 'human', spawnTile, `${world.kingdoms[kingdomId].name} Marshal`)
+  marshal.skills.combat = 7
+  marshal.skills.patrol = 6
+  marshal.homeSettlementId = settlement.id
+  marshal.meta.justiceManhunt = true
+  marshal.meta.expiresTurn = world.turn + 16
+  marshal.meta.manhuntKingdomId = kingdomId
+  if (settlement.tier === 'city') {
+    marshal.meta.guardCityId = settlement.id
+  }
+  world.characters[id] = marshal
+  player.meta.manhuntKingdomId = kingdomId
+  player.meta.manhuntExpiresTurn = world.turn + 16
+  return `${world.kingdoms[kingdomId].name} declared a manhunt and deployed city marshals.`
+}
+
+export const tryIssueAmnestyDecree = (world: World, kingdomId: string): string | undefined => {
+  const player = world.characters[world.playerId]
+  const settlement = currentSettlementForPlayer(world)
+  if (!player?.alive || !settlement || settlement.kingdomId !== kingdomId) return undefined
+  const policy = world.kingdoms[kingdomId]?.policy
+  if (!policy) return undefined
+  const bounty = Number(player.meta.bounty ?? 0)
+  if (bounty <= 0) return undefined
+  if (policy.tradeStance === 'protectionist' || policy.pardonGoldFactor > 1.2) return undefined
+  if (kingdomInvolvedInWar(world, kingdomId)) return undefined
+
+  const reduction = clamp(
+    Math.round(policy.bountyDecayPerTick * 3 + (1.2 - policy.pardonGoldFactor) * 4),
+    4,
+    16,
+  )
+  player.meta.bounty = Math.max(0, bounty - reduction)
+  player.reputation += 2
+  world.playerKingdomFavor[kingdomId] = clamp((world.playerKingdomFavor[kingdomId] ?? 0) + 1, 0, 100)
+  return `${world.kingdoms[kingdomId].name} announced an amnesty decree. Your bounty fell by ${reduction}.`
+}
+
+export const tryCorruptionCrackdown = (
+  world: World,
+  kingdomId: string,
+): string | undefined => {
+  const kingdom = world.kingdoms[kingdomId]
+  if (!kingdom) return undefined
+  const policy = kingdom.policy
+  const crisis = policy.tradeStance === 'protectionist' || policy.pardonGoldFactor > 1.15 || kingdomInvolvedInWar(world, kingdomId)
+  if (!crisis) return undefined
+
+  policy.guardHostilityReputation = clamp(Math.round(policy.guardHostilityReputation + 2), -30, -6)
+  policy.guardHostilityBounty = clamp(Math.round(policy.guardHostilityBounty - 2), 10, 34)
+  policy.bountyDecayPerTick = clamp(Math.round(policy.bountyDecayPerTick - 1), 1, 5)
+  policy.pardonGoldFactor = clamp(policy.pardonGoldFactor + 0.08, 0.6, 1.8)
+
+  const player = world.characters[world.playerId]
+  const settlement = currentSettlementForPlayer(world)
+  if (player?.alive && settlement?.kingdomId === kingdomId) {
+    const bounty = Number(player.meta.bounty ?? 0)
+    if (bounty > 0) {
+      player.meta.bounty = clamp(bounty + 3, 0, 9999)
+    }
+  }
+
+  return `${kingdom.name} launched anti-corruption crackdowns, tightening legal enforcement.`
+}
+
+export const simulateJusticeEvents = (world: World, rng: SeededRng): string[] => {
+  const messages: string[] = []
+  const player = world.characters[world.playerId]
+  if (!player?.alive) return messages
+  const currentSettlement = currentSettlementForPlayer(world)
+
+  if (world.turn % 8 === 0 && currentSettlement) {
+    const kingdomId = currentSettlement.kingdomId
+    const policy = world.kingdoms[kingdomId]?.policy
+    if (policy) {
+      const strictChance = clamp(
+        0.24 +
+          (policy.guardHostilityReputation > -15 ? 0.18 : 0) +
+          (policy.guardHostilityBounty < 18 ? 0.16 : 0),
+        0.1,
+        0.68,
+      )
+      if (rng.chance(strictChance)) {
+        const message = tryDeclareManhunt(world, rng, kingdomId)
+        if (message) messages.push(message)
+      }
+    }
+  }
+
+  if (world.turn % 10 === 0 && currentSettlement) {
+    const kingdomId = currentSettlement.kingdomId
+    const policy = world.kingdoms[kingdomId]?.policy
+    if (policy) {
+      const amnestyChance = policy.tradeStance === 'open' ? 0.32 : policy.tradeStance === 'balanced' ? 0.16 : 0.05
+      if (rng.chance(amnestyChance)) {
+        const message = tryIssueAmnestyDecree(world, kingdomId)
+        if (message) messages.push(message)
+      }
+    }
+  }
+
+  if (world.turn % 14 === 0) {
+    const kingdomIds = Object.keys(world.kingdoms)
+    const kingdomId = kingdomIds[rng.int(0, kingdomIds.length - 1)]
+    const policy = world.kingdoms[kingdomId]?.policy
+    if (policy) {
+      const crackdownChance =
+        policy.tradeStance === 'protectionist'
+          ? 0.46
+          : kingdomInvolvedInWar(world, kingdomId)
+            ? 0.3
+            : 0.12
+      if (rng.chance(crackdownChance)) {
+        const message = tryCorruptionCrackdown(world, kingdomId)
+        if (message) messages.push(message)
+      }
+    }
+  }
+
+  return messages
 }
 
 export const spawnWorldEvents = (world: World, rng: SeededRng): string[] => {

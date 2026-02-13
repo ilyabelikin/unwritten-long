@@ -86,6 +86,11 @@ export const Hud = ({
   const kingdomIds = Object.keys(world.kingdoms)
   const activeConflicts = Object.keys(world.kingdomConflicts).filter((key) => world.kingdomConflicts[key])
   const playerCampaignRank = campaignRankInfo(player.reputation)
+  const manhuntKingdomId =
+    typeof player.meta.manhuntKingdomId === 'string' ? player.meta.manhuntKingdomId : undefined
+  const manhuntExpiresTurn = Number(player.meta.manhuntExpiresTurn ?? -1)
+  const manhuntActive =
+    manhuntKingdomId && manhuntExpiresTurn >= world.turn ? world.kingdoms[manhuntKingdomId] : undefined
 
   return (
     <aside className="hud">
@@ -108,6 +113,7 @@ export const Hud = ({
               )})`
             : 'n/a'}
         </span>
+        {manhuntActive && <span>Law alert: {manhuntActive.name} manhunt active until turn {manhuntExpiresTurn}</span>}
         <span>Save: {lastSavedAt ? new Date(lastSavedAt).toLocaleTimeString() : 'not saved yet'}</span>
         <div className="button-row">
           <button onClick={onEndTurn}>End Turn</button>

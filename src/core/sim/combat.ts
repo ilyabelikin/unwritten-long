@@ -172,8 +172,11 @@ export const isAggressiveTowards = (actor: Character, target: Character, world: 
       ? world.settlements[actor.homeSettlementId]?.kingdomId
       : undefined
     const legalPolicy = guardKingdomId ? world.kingdoms[guardKingdomId]?.policy : undefined
-    const repThreshold = legalPolicy?.guardHostilityReputation ?? -20
-    const bountyThreshold = legalPolicy?.guardHostilityBounty ?? 20
+    const manhuntKingdom = target.meta.manhuntKingdomId as string | undefined
+    const manhuntExpiresTurn = Number(target.meta.manhuntExpiresTurn ?? -1)
+    const manhuntActive = manhuntKingdom === guardKingdomId && manhuntExpiresTurn >= world.turn
+    const repThreshold = (legalPolicy?.guardHostilityReputation ?? -20) + (manhuntActive ? 8 : 0)
+    const bountyThreshold = Math.max(8, (legalPolicy?.guardHostilityBounty ?? 20) - (manhuntActive ? 8 : 0))
     const bounty = Number(target.meta.bounty ?? 0)
     return target.reputation <= repThreshold || bounty >= bountyThreshold
   }

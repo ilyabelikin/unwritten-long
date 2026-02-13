@@ -16,6 +16,7 @@ A browser-based turn-based hex adventure simulation with:
 - Multi-stage contract tiers including caravan escort and settlement defense objectives.
 - Kingdom campaign progression: completed contracts raise campaign standing and unlock high-priority royal objectives.
 - Siege pressure simulation for towns/cities under nearby hostile presence, influencing economy and defense urgency.
+- Royal campaign chains run in staged objectives; missing critical stages can collapse the full chain.
 
 ## Tech
 

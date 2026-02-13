@@ -41,6 +41,7 @@ Then open the printed localhost URL.
 - **New World** button: regenerate with a fresh seed.
 - **Save / Load** buttons: persist and restore game state from browser local storage.
 - **Overlay selector**: switch map intel between terrain, kingdoms, economy, and danger.
+- **Civic actions in settlements**: donate supplies, sponsor diplomatic talks, and request city pardons.
 
 ## Rules implemented
 
@@ -56,6 +57,7 @@ Then open the printed localhost URL.
 - Wildlife ecology includes predator-prey interactions and seasonal births/attrition.
 - Kingdom conflicts can trigger frontier clashes; policies (tax/patrol/trade stance) evolve over time.
 - War borders influence danger overlays and can spawn armed warbands.
+- War refugees can emerge from conflict frontiers and migrate toward safer, prosperous regions.
 
 ## Tests
 

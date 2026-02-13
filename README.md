@@ -19,6 +19,7 @@ A browser-based turn-based hex adventure simulation with:
 - Royal campaign chains run in staged objectives; missing critical stages can collapse the full chain.
 - Kingdom favor/rank progression unlocks exclusive local commissions with higher requirements and rewards.
 - Each kingdom now issues its own exclusive commission pool (Harvest Court, Warden Hall, Guild Ledger styles).
+- Reputation now grants campaign rank titles; royal/exclusive contracts can require minimum rank.
 
 ## Tech
 
@@ -54,6 +55,7 @@ Then open the printed localhost URL.
 - **Siege pressure** is visible in settlement stats and increases demand for defensive contracts.
 - **Kingdom favor ranks** are shown in diplomacy intel and gate special contract offers.
 - **Exclusive commissions** reflect the issuer kingdom's contract pool theme and rewards.
+- **Campaign rank titles** are based on reputation and can gate high-trust contracts.
 - **Militia action**: spend tools to raise temporary local guards during dangerous periods.
 
 ## Rules implemented

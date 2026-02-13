@@ -6,6 +6,7 @@ import { clamp } from '../utils'
 import { performAttack, healInCities, isAggressiveTowards, cityGuardSpawnTiles } from './combat'
 import { simulateEconomyTurn, estimateGoodPrice } from './economy'
 import { spawnWorldEvents } from './events'
+import { simulateWildlifeEcology } from './wildlife'
 
 const seasonOrder: World['season'][] = ['spring', 'summer', 'autumn', 'winter']
 
@@ -310,6 +311,7 @@ export const advanceWorldTurn = (world: World, seedOffset = 0): string[] => {
   }
 
   messages.push(...spawnWorldEvents(world, rng))
+  messages.push(...simulateWildlifeEcology(world, rng))
   healInCities(world)
 
   const player = world.characters[world.playerId]

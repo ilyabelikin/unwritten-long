@@ -112,5 +112,22 @@ describe('economy simulation', () => {
     simulateEconomyTurn(world, new SeededRng(44))
     expect(candidate.tier).toBe(nextTier)
   })
+
+  it('raises key seasonal needs during winter', () => {
+    const world = generateWorld(2233)
+    const settlement = Object.values(world.settlements)[0]
+
+    world.season = 'summer'
+    world.seasonTurn = 10
+    simulateEconomyTurn(world, new SeededRng(51))
+    const summerGrainNeed = settlement.needs.grain
+    const summerWoodNeed = settlement.needs.wood
+
+    world.season = 'winter'
+    world.seasonTurn = 10
+    simulateEconomyTurn(world, new SeededRng(52))
+    expect(settlement.needs.grain).toBeGreaterThanOrEqual(summerGrainNeed)
+    expect(settlement.needs.wood).toBeGreaterThanOrEqual(summerWoodNeed)
+  })
 })
 

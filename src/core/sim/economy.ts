@@ -612,17 +612,19 @@ export const simulateEconomyTurn = (world: World, rng: SeededRng): string[] => {
   const messages: string[] = []
   for (const settlement of Object.values(world.settlements)) {
     const population = settlement.populationIds.filter((id) => world.characters[id]?.alive).length
+    const seasonalNeedMultiplier =
+      world.season === 'winter' ? 1.2 : world.season === 'summer' ? 0.94 : world.season === 'autumn' ? 1.05 : 1
     const needs = createGoodRecord(0)
-    needs.vegetables = Math.ceil(population * 0.35)
-    needs.fish = Math.ceil(population * 0.22)
-    needs.grain = Math.ceil(population * 0.4)
-    needs.meat = Math.ceil(population * 0.15)
-    needs.wood = Math.ceil(population * 0.2)
+    needs.vegetables = Math.ceil(population * 0.35 * seasonalNeedMultiplier)
+    needs.fish = Math.ceil(population * 0.22 * (world.season === 'winter' ? 1.1 : 1))
+    needs.grain = Math.ceil(population * 0.4 * seasonalNeedMultiplier)
+    needs.meat = Math.ceil(population * 0.15 * (world.season === 'winter' ? 1.22 : 1))
+    needs.wood = Math.ceil(population * 0.2 * (world.season === 'winter' ? 1.2 : 1))
     needs.stone = Math.ceil(population * 0.12)
     needs.clay = Math.ceil(population * 0.1)
     needs.iron_ore = Math.ceil(population * 0.09)
     needs.iron_ingot = Math.ceil(population * 0.06)
-    needs.tools = Math.ceil(population * 0.05)
+    needs.tools = Math.ceil(population * 0.05 * (world.season === 'winter' ? 1.06 : 1))
     needs.gold_ore = Math.ceil(population * 0.01)
     settlement.needs = needs
     updateCropStage(settlement, world, messages)

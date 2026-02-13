@@ -141,6 +141,7 @@ export interface World {
   settlements: Record<string, Settlement>
   characters: Record<string, Character>
   kingdoms: Record<string, Kingdom>
+  kingdomRelations: Record<string, number>
   playerId: string
   turn: number
   season: Season

@@ -20,12 +20,15 @@ describe('game persistence', () => {
     // simulate older save payload without meta
     // @ts-expect-error legacy payload intentionally omits field
     delete settlement.meta
+    // @ts-expect-error legacy payload intentionally omits field
+    delete world.kingdomRelations
     const serialized = serializeWorld(world)
     const loaded = deserializeWorld(serialized)
     const loadedSettlement = loaded.world?.settlements[settlement.id]
     expect(loadedSettlement?.meta.cropStage).toBe('dormant')
     expect(loadedSettlement?.meta.foodStress).toBe(0)
     expect(loadedSettlement?.meta.prosperity).toBe(40)
+    expect(Object.keys(loaded.world?.kingdomRelations ?? {})).not.toHaveLength(0)
   })
 })
 

@@ -9,7 +9,12 @@ const travelCost = (tile: Tile): number => {
   return cost
 }
 
-export const shortestPath = (world: World, startId: string, goalId: string): string[] => {
+const findPath = (
+  world: World,
+  startId: string,
+  goalId: string,
+  extraTileCost?: (tileId: string) => number,
+): string[] => {
   if (startId === goalId) return [startId]
   const open = new Set<string>([startId])
   const cameFrom: Record<string, string | undefined> = {}
@@ -52,7 +57,8 @@ export const shortestPath = (world: World, startId: string, goalId: string): str
       const neighborId = keyFor(neighborCoord.q, neighborCoord.r)
       const tile = world.tiles[neighborId]
       if (!tile || tile.terrain === 'sea') continue
-      const candidate = (gScore[current] ?? Number.POSITIVE_INFINITY) + travelCost(tile)
+      const riskCost = Math.max(0, extraTileCost?.(neighborId) ?? 0)
+      const candidate = (gScore[current] ?? Number.POSITIVE_INFINITY) + travelCost(tile) + riskCost
       if (candidate < (gScore[neighborId] ?? Number.POSITIVE_INFINITY)) {
         cameFrom[neighborId] = current
         gScore[neighborId] = candidate
@@ -64,4 +70,18 @@ export const shortestPath = (world: World, startId: string, goalId: string): str
 
   return [startId]
 }
+
+export const shortestPath = (world: World, startId: string, goalId: string): string[] =>
+  findPath(world, startId, goalId)
+
+export const safestPath = (
+  world: World,
+  startId: string,
+  goalId: string,
+  dangerByTile: Record<string, number>,
+): string[] =>
+  findPath(world, startId, goalId, (tileId) => {
+    const danger = dangerByTile[tileId] ?? 0
+    return Math.min(8, danger)
+  })
 

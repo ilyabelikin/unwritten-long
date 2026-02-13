@@ -1,8 +1,9 @@
 import { BASE_GOOD_PRICE, FOOD_GOODS, PLAYER_BASE_AP } from '../constants'
 import { BUILDING_COSTS, BUILDING_TEMPLATES } from '../data/content'
 import { keyFor, neighborsOf, parseKey } from '../hex'
-import { shortestPath } from '../pathing'
+import { safestPath, shortestPath } from '../pathing'
 import { SeededRng } from '../random'
+import { relationBetween } from './diplomacy'
 import type { BuildingType, Character, CropStage, Good, Settlement, SettlementTier, World } from '../types'
 import { addGoods, clamp, consumeGoods, createGoodRecord } from '../utils'
 
@@ -312,6 +313,25 @@ const sendHungryMigrant = (
   messages.push(`${migrant.name} left ${settlement.name} as a migrant toward ${target.name}.`)
 }
 
+const buildDangerMap = (world: World): Record<string, number> => {
+  const danger: Record<string, number> = {}
+  for (const tileId of world.tileOrder) danger[tileId] = 0
+  for (const actor of Object.values(world.characters)) {
+    if (!actor.alive) continue
+    const value =
+      actor.role === 'bandit'
+        ? 2.8
+        : actor.role === 'monster'
+          ? 3.8
+          : actor.role === 'wildlife' && ['wolf', 'bear', 'boar'].includes(actor.species)
+            ? 1.1
+            : 0
+    if (value <= 0) continue
+    danger[actor.location] = (danger[actor.location] ?? 0) + value
+  }
+  return danger
+}
+
 const tierOrder: SettlementTier[] = ['hamlet', 'village', 'town', 'city']
 const tierFootprintTarget: Record<SettlementTier, number> = {
   hamlet: 1,
@@ -530,24 +550,37 @@ const spawnCaravan = (
         qty: number
         buyPrice: number
         sellPrice: number
+        tariff: number
+        path: string[]
       }
     | undefined
+
+  const dangerByTile = buildDangerMap(world)
 
   for (const good of Object.keys(settlement.needs) as Good[]) {
     const deficit = settlement.needs[good] - settlement.stockpile[good]
     if (deficit <= 2) continue
     for (const other of Object.values(world.settlements)) {
       if (other.id === settlement.id) continue
+      const relation = relationBetween(world, settlement.kingdomId, other.kingdomId)
+      if (relation <= -45) continue
       const surplus = other.stockpile[good] - other.needs[good]
       if (surplus <= 2) continue
       const buyPrice = estimateGoodPrice(other, good, world.season)
       const sellPrice = estimateGoodPrice(settlement, good, world.season)
       const qty = Math.min(10, Math.floor(surplus), Math.floor(deficit))
       if (qty < 2) continue
-      const margin = (sellPrice - buyPrice) * qty
+      const tariff = settlement.kingdomId === other.kingdomId ? 0 : relation < 0 ? 0.2 : relation < 25 ? 0.11 : 0.04
+      const sourceCenter = other.tiles[0]
+      const homeCenter = settlement.tiles[0]
+      const tradePath = safestPath(world, homeCenter, sourceCenter, dangerByTile)
+      if (tradePath.length < 2) continue
+      const routeDanger = tradePath.reduce((total, tileId) => total + (dangerByTile[tileId] ?? 0), 0)
+      const riskCost = routeDanger * 0.9
+      const margin = (sellPrice - buyPrice * (1 + tariff)) * qty - riskCost
       if (margin <= 6) continue
-      if (!bestDeal || margin > (bestDeal.sellPrice - bestDeal.buyPrice) * bestDeal.qty) {
-        bestDeal = { source: other, good, qty, buyPrice, sellPrice }
+      if (!bestDeal || margin > (bestDeal.sellPrice - bestDeal.buyPrice * (1 + bestDeal.tariff)) * bestDeal.qty) {
+        bestDeal = { source: other, good, qty, buyPrice, sellPrice, tariff, path: tradePath }
       }
     }
   }
@@ -559,10 +592,10 @@ const spawnCaravan = (
   const sourceCoord = parseKey(sourceCenter)
   const distance = Math.abs(homeCoord.q - sourceCoord.q) + Math.abs(homeCoord.r - sourceCoord.r)
   if (distance > 28) return
-  const travelPath = shortestPath(world, homeCenter, sourceCenter)
+  const travelPath = bestDeal.path.length > 1 ? bestDeal.path : shortestPath(world, homeCenter, sourceCenter)
   if (travelPath.length < 2) return
 
-  const buyCost = bestDeal.buyPrice * bestDeal.qty
+  const buyCost = bestDeal.buyPrice * bestDeal.qty * (1 + bestDeal.tariff)
   if (buyCost > settlement.treasury) return
   if (bestDeal.source.stockpile[bestDeal.good] < bestDeal.qty) return
 
@@ -605,7 +638,10 @@ const spawnCaravan = (
     },
   }
   world.characters[id] = trader
-  messages.push(`${settlement.name} launched caravan for ${bestDeal.good}.`)
+  const tariffPercent = Math.round(bestDeal.tariff * 100)
+  messages.push(
+    `${settlement.name} launched caravan for ${bestDeal.good}${tariffPercent > 0 ? ` (tariff ${tariffPercent}%)` : ''}.`,
+  )
 }
 
 export const simulateEconomyTurn = (world: World, rng: SeededRng): string[] => {

@@ -1,4 +1,5 @@
 import type { Settlement, World } from '../core/types'
+import { kingdomPairKey } from '../core/sim/diplomacy'
 
 export const SAVE_KEY = 'frontier-realms-save-v1'
 const SAVE_VERSION = 1
@@ -20,6 +21,19 @@ const ensureSettlementMeta = (settlement: Settlement): void => {
   settlement.meta.prosperity = Number.isFinite(settlement.meta.prosperity) ? settlement.meta.prosperity : 40
 }
 
+const ensureKingdomRelations = (world: World): void => {
+  if (!world.kingdomRelations) world.kingdomRelations = {}
+  const ids = Object.keys(world.kingdoms)
+  for (let i = 0; i < ids.length; i += 1) {
+    for (let j = i + 1; j < ids.length; j += 1) {
+      const key = kingdomPairKey(ids[i], ids[j])
+      if (!Number.isFinite(world.kingdomRelations[key])) {
+        world.kingdomRelations[key] = 0
+      }
+    }
+  }
+}
+
 export const serializeWorld = (world: World): string =>
   JSON.stringify({
     version: SAVE_VERSION,
@@ -37,6 +51,7 @@ export const deserializeWorld = (payload: string): { world?: World; timestamp?: 
     for (const settlement of Object.values(world.settlements)) {
       ensureSettlementMeta(settlement)
     }
+    ensureKingdomRelations(world)
     world.messages = world.messages ?? []
     return {
       world,

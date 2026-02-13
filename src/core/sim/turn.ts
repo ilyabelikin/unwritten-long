@@ -4,6 +4,7 @@ import { SeededRng } from '../random'
 import type { Character, World } from '../types'
 import { clamp } from '../utils'
 import { performAttack, healInCities, isAggressiveTowards, cityGuardSpawnTiles } from './combat'
+import { simulateDiplomacyTurn } from './diplomacy'
 import { simulateEconomyTurn, estimateGoodPrice } from './economy'
 import { spawnWorldEvents } from './events'
 import { simulateWildlifeEcology } from './wildlife'
@@ -307,6 +308,7 @@ export const advanceWorldTurn = (world: World, seedOffset = 0): string[] => {
 
   const messages: string[] = [`World turn ${world.turn}: ${world.season}.`]
   messages.push(...simulateEconomyTurn(world, rng))
+  messages.push(...simulateDiplomacyTurn(world, rng))
 
   Object.values(world.characters).forEach((char) => {
     if (char.alive) char.ap = char.maxAp

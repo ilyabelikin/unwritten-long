@@ -20,6 +20,7 @@ A browser-based turn-based hex adventure simulation with:
 - Kingdom favor/rank progression unlocks exclusive local commissions with higher requirements and rewards.
 - Each kingdom now issues its own exclusive commission pool (Harvest Court, Warden Hall, Guild Ledger styles).
 - Reputation now grants campaign rank titles; royal/exclusive contracts can require minimum rank.
+- Kingdom-specific legal systems now vary guard hostility thresholds, bounty decay speed, and pardon pricing.
 
 ## Tech
 
@@ -56,6 +57,7 @@ Then open the printed localhost URL.
 - **Kingdom favor ranks** are shown in diplomacy intel and gate special contract offers.
 - **Exclusive commissions** reflect the issuer kingdom's contract pool theme and rewards.
 - **Campaign rank titles** are based on reputation and can gate high-trust contracts.
+- **Legal policy values** are visible per kingdom (guard hostility, bounty decay, pardon factor).
 - **Militia action**: spend tools to raise temporary local guards during dangerous periods.
 
 ## Rules implemented
@@ -66,6 +68,7 @@ Then open the printed localhost URL.
 - Rough/deep forest/mountain movement is more expensive.
 - City guards become aggressive toward low-reputation players.
 - Criminal actions build bounty; guards escalate pursuit for wanted players.
+- Each kingdom enforces different legal thresholds (some crack down quickly, others are lenient).
 - HP ≤ 0 resolves to death/survival rules; city visit restores HP to full.
 - Bears mostly hibernate in winter, with rare aggressive wake-ups.
 - Seasonal crop cycle and food stress drive migration/growth/decline pressure in settlements.

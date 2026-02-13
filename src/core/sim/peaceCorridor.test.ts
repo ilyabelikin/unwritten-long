@@ -3,6 +3,7 @@ import { generateWorld } from '../worldgen/generateWorld'
 import { setRelation, setWarState } from './diplomacy'
 import {
   activePeaceCorridorForKingdom,
+  corridorStatusForPair,
   routeRiskReliefFromPeaceCorridor,
   tariffReliefFromPeaceCorridor,
 } from './peaceCorridor'
@@ -62,5 +63,29 @@ describe('peace corridor helpers', () => {
     world.kingdoms[right].policy.peaceDividendIntensity = 38
     expect(tariffReliefFromPeaceCorridor(world, left, right)).toBe(0.08)
     expect(routeRiskReliefFromPeaceCorridor(world, left, right)).toBe(0.32)
+  })
+
+  it('classifies corridor health across fragile/robust states', () => {
+    const world = generateWorld(9953)
+    const [left, right] = Object.keys(world.kingdoms)
+    world.kingdoms[left].policy.peaceDividendPartnerKingdomId = right
+    world.kingdoms[right].policy.peaceDividendPartnerKingdomId = left
+    world.kingdoms[left].policy.peaceDividendUntilTurn = world.turn + 2
+    world.kingdoms[right].policy.peaceDividendUntilTurn = world.turn + 2
+    world.kingdoms[left].policy.peaceDividendIntensity = 16
+    world.kingdoms[right].policy.peaceDividendIntensity = 16
+    setWarState(world, left, right, false)
+    setRelation(world, left, right, 8)
+    expect(corridorStatusForPair(world, left, right).health).toBe('fragile')
+
+    world.kingdoms[left].policy.peaceDividendUntilTurn = world.turn + 12
+    world.kingdoms[right].policy.peaceDividendUntilTurn = world.turn + 12
+    world.kingdoms[left].policy.peaceDividendIntensity = 42
+    world.kingdoms[right].policy.peaceDividendIntensity = 42
+    setRelation(world, left, right, 30)
+    expect(corridorStatusForPair(world, left, right).health).toBe('robust')
+
+    setWarState(world, left, right, true)
+    expect(corridorStatusForPair(world, left, right).health).toBe('critical')
   })
 })

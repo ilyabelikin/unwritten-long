@@ -4,6 +4,7 @@ import { SPECIES_LABEL } from '../core/data/content'
 import { relationBetween } from '../core/sim/diplomacy'
 import { courtFactionLabel, edictLabel } from '../core/sim/edicts'
 import { favorRankTitle } from '../core/sim/favor'
+import { corridorStatusForPair } from '../core/sim/peaceCorridor'
 import type { Contract } from '../core/types'
 import type { Good, World } from '../core/types'
 import type { MapOverlayMode } from '../game/store'
@@ -62,6 +63,14 @@ const showOppositionType = (value: unknown): string => {
   if (value === 'war_hawk_sabotage') return 'War Hawk Sabotage'
   if (value === 'reformer_counterpressure') return 'Reformer Counterpressure'
   return 'Opposition Incident'
+}
+
+const showCorridorHealth = (value: unknown): string => {
+  if (value === 'robust') return 'robust'
+  if (value === 'stable') return 'stable'
+  if (value === 'fragile') return 'fragile'
+  if (value === 'critical') return 'critical'
+  return 'inactive'
 }
 
 const showCourtStandingRequirements = (
@@ -284,6 +293,9 @@ export const Hud = ({
                 )}
                 {activeContract.meta.peaceCorridor === true && <p>Cross-border peace corridor commission</p>}
                 {activeContract.meta.corridorMaintenance === true && <p>Corridor maintenance mandate</p>}
+                {typeof activeContract.meta.corridorHealth === 'string' && (
+                  <p>Corridor health at posting: {showCorridorHealth(activeContract.meta.corridorHealth)}</p>
+                )}
                 {activeContract.meta.courtPatronage === true && (
                   <p>Patronage tier: {String(activeContract.meta.courtPatronTitle ?? 'Court Patronage')}</p>
                 )}
@@ -401,6 +413,9 @@ export const Hud = ({
                         )}
                         {contract.meta.peaceCorridor === true && <p>Cross-border peace corridor commission</p>}
                         {contract.meta.corridorMaintenance === true && <p>Corridor maintenance mandate</p>}
+                        {typeof contract.meta.corridorHealth === 'string' && (
+                          <p>Corridor health at posting: {showCorridorHealth(contract.meta.corridorHealth)}</p>
+                        )}
                         {contract.meta.courtPatronage === true && (
                           <p>Patronage: {String(contract.meta.courtPatronTitle ?? 'Court Patronage')}</p>
                         )}
@@ -559,11 +574,18 @@ export const Hud = ({
               kingdomIds.slice(idx + 1).map((right) => {
                 const relation = relationBetween(world, left, right)
                 const style = relation >= 35 ? 'good' : relation <= -25 ? 'bad' : 'mid'
+                const corridor = corridorStatusForPair(world, left, right)
                 return (
                   <li key={`${left}-${right}`}>
                     <span>{world.kingdoms[left].name}</span>
                     <span className={`relation ${style}`}>{relation}</span>
                     <span>{world.kingdoms[right].name}</span>
+                    {corridor.active && (
+                      <span>
+                        Corridor {showCorridorHealth(corridor.health)} ({Math.round(corridor.intensity)}% ·{' '}
+                        {corridor.turnsRemaining}t)
+                      </span>
+                    )}
                   </li>
                 )
               }),

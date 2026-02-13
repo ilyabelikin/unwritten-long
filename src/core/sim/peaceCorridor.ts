@@ -2,6 +2,18 @@ import type { World } from '../types'
 import { clamp } from '../utils'
 import { isAtWar, relationBetween } from './diplomacy'
 
+export type CorridorHealth = 'inactive' | 'critical' | 'fragile' | 'stable' | 'robust'
+
+export interface CorridorStatus {
+  active: boolean
+  stabilized: boolean
+  partnerKingdomId?: string
+  intensity: number
+  turnsRemaining: number
+  relation: number
+  health: CorridorHealth
+}
+
 export const activePeaceCorridorForKingdom = (
   world: World,
   kingdomId?: string,
@@ -22,6 +34,56 @@ export const activePeaceCorridorForKingdom = (
   const intensity = clamp(Math.min(policy.peaceDividendIntensity, partnerPolicy.peaceDividendIntensity), 0, 100)
   if (intensity < 12) return undefined
   return { partnerKingdomId, intensity }
+}
+
+export const corridorStatusForPair = (
+  world: World,
+  leftKingdomId: string,
+  rightKingdomId: string,
+): CorridorStatus => {
+  const leftPolicy = world.kingdoms[leftKingdomId]?.policy
+  const rightPolicy = world.kingdoms[rightKingdomId]?.policy
+  if (!leftPolicy || !rightPolicy) {
+    return {
+      active: false,
+      stabilized: false,
+      intensity: 0,
+      turnsRemaining: -1,
+      relation: relationBetween(world, leftKingdomId, rightKingdomId),
+      health: 'inactive',
+    }
+  }
+
+  const bilateralLink =
+    leftPolicy.peaceDividendPartnerKingdomId === rightKingdomId &&
+    rightPolicy.peaceDividendPartnerKingdomId === leftKingdomId
+  const turnsRemaining = Math.min(leftPolicy.peaceDividendUntilTurn, rightPolicy.peaceDividendUntilTurn) - world.turn
+  const intensity = clamp(Math.min(leftPolicy.peaceDividendIntensity, rightPolicy.peaceDividendIntensity), 0, 100)
+  const relation = relationBetween(world, leftKingdomId, rightKingdomId)
+  const atWar = isAtWar(world, leftKingdomId, rightKingdomId)
+  const active = bilateralLink && turnsRemaining >= 0 && intensity > 0
+  const stabilized = active && !atWar && relation >= -4
+
+  let health: CorridorHealth = 'inactive'
+  if (active && (!stabilized || turnsRemaining <= 1 || intensity <= 6)) {
+    health = 'critical'
+  } else if (active && (turnsRemaining <= 4 || relation < 14 || intensity < 20)) {
+    health = 'fragile'
+  } else if (active && relation >= 24 && turnsRemaining >= 8 && intensity >= 34) {
+    health = 'robust'
+  } else if (active) {
+    health = 'stable'
+  }
+
+  return {
+    active,
+    stabilized,
+    partnerKingdomId: active ? rightKingdomId : undefined,
+    intensity,
+    turnsRemaining,
+    relation,
+    health,
+  }
 }
 
 export const guardLeniencyFromPeaceCorridor = (

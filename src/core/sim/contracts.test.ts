@@ -458,6 +458,9 @@ describe('contracts system', () => {
       if (maintenance) {
         foundMaintenance = true
         expect(['escort_caravan', 'defend_settlement', 'deliver_food']).toContain(maintenance.kind)
+        expect(
+          maintenance.meta.corridorHealth === 'fragile' || maintenance.meta.corridorHealth === 'critical',
+        ).toBe(true)
       }
     }
 

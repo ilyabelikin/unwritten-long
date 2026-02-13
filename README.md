@@ -86,10 +86,12 @@ Then open the printed localhost URL.
 - **Boom-time contract outcomes** can reinforce or weaken active peace dividends depending on success/failure.
 - Some peace-dividend escorts now form explicit cross-border trade corridors with partner kingdoms.
 - Fraying corridors can post dedicated maintenance mandates to preserve détente logistics.
+- Corridor mandates now record corridor-health context (`critical`/`fragile`/`stable`/`robust`) when posted.
 - Losing a peace-corridor caravan can sharply damage or even collapse a fragile dividend détente.
 - Corridor-active cities apply softer guard/legal pressure (more bounty decay and reduced pardon burden).
 - Active corridors also reduce cross-border caravan tariffs and route risk, improving sustained inter-kingdom trade.
 - Sustained corridors gradually nudge kingdom enforcement policy toward less protectionist, less punitive settings.
+- Diplomacy panel pair rows now surface live corridor intensity/turns and health state for fast treaty risk scanning.
 - Corridor trade/peace bonuses pause automatically if the paired kingdoms return to open war.
 - If conflict reignites, corridor intensity now degrades and fragile corridors can fully collapse.
 - **Militia action**: spend tools to raise temporary local guards during dangerous periods.

@@ -5,6 +5,7 @@ import type { Contract, Good, Settlement, World } from '../types'
 import { clamp } from '../utils'
 import { campaignRankTitleForReputation } from './campaignRank'
 import { isAtWar, kingdomPairKey, relationBetween, setRelation, setWarState } from './diplomacy'
+import { corridorStatusForPair } from './peaceCorridor'
 
 type KingdomExclusivePool = 'harvest' | 'warden' | 'guild'
 type CourtFaction = World['kingdoms'][string]['policy']['courtFaction']
@@ -391,6 +392,9 @@ const createContractForSettlement = (
   const underSiege = settlement.meta.siegePressure > 28
   const courtFaction = courtFactionForSettlement(world, settlement)
   const peaceDividend = activePeaceDividendForSettlement(world, settlement)
+  const corridorStatus = peaceDividend.partnerKingdomId
+    ? corridorStatusForPair(world, settlement.kingdomId, peaceDividend.partnerKingdomId)
+    : undefined
   const peaceBoom = peaceDividend.intensity >= 14 && !underSiege && settlement.meta.foodStress < 42
   const corridorRelation = peaceDividend.partnerKingdomId
     ? relationBetween(world, settlement.kingdomId, peaceDividend.partnerKingdomId)
@@ -398,7 +402,13 @@ const createContractForSettlement = (
   const corridorMaintenancePressure =
     Boolean(peaceDividend.partnerKingdomId) &&
     peaceBoom &&
-    (peaceDividend.turnsRemaining <= 4 || corridorRelation < 18 || settlement.meta.siegePressure > 12)
+    (
+      corridorStatus?.health === 'critical' ||
+      corridorStatus?.health === 'fragile' ||
+      peaceDividend.turnsRemaining <= 4 ||
+      corridorRelation < 18 ||
+      settlement.meta.siegePressure > 12
+    )
   const campaignRank = Math.floor((world.campaignProgress[settlement.kingdomId] ?? 0) / 3)
   const baseLevel = settlement.tier === 'city' ? 3 : settlement.tier === 'town' ? 2 : 1
   const level = clamp(
@@ -452,6 +462,9 @@ const createContractForSettlement = (
     contract.expiresTurn += 2
     contract.meta.peaceDividendOpportunity = true
     contract.meta.peaceDividendIntensity = peaceDividend.intensity
+    if (corridorStatus) {
+      contract.meta.corridorHealth = corridorStatus.health
+    }
     if (peaceDividend.partnerKingdomId) {
       contract.meta.peaceDividendPartnerKingdomId = peaceDividend.partnerKingdomId
     }

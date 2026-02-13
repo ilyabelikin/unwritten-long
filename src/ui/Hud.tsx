@@ -6,8 +6,11 @@ import './Hud.css'
 interface HudProps {
   world: World
   actionFeed: string[]
+  lastSavedAt?: number
   onNewWorld: () => void
   onEndTurn: () => void
+  onSaveGame: () => void
+  onLoadGame: () => void
   onConfirmRobbery: (confirm: boolean) => void
 }
 
@@ -19,7 +22,16 @@ const showGoods = (goods: Record<Good, number>): string =>
     .map(([good, amount]) => `${good}: ${Math.round(amount * 10) / 10}`)
     .join(' · ')
 
-export const Hud = ({ world, actionFeed, onNewWorld, onEndTurn, onConfirmRobbery }: HudProps) => {
+export const Hud = ({
+  world,
+  actionFeed,
+  lastSavedAt,
+  onNewWorld,
+  onEndTurn,
+  onSaveGame,
+  onLoadGame,
+  onConfirmRobbery,
+}: HudProps) => {
   const player = world.characters[world.playerId]
   const selectedTile = world.selectedTileId ? world.tiles[world.selectedTileId] : undefined
   const selectedCharacter = world.selectedCharacterId ? world.characters[world.selectedCharacterId] : undefined
@@ -36,9 +48,12 @@ export const Hud = ({ world, actionFeed, onNewWorld, onEndTurn, onConfirmRobbery
         <span>
           HP {player.hp}/{player.maxHp} · AP {player.ap}/{player.maxAp} · Reputation {player.reputation}
         </span>
+        <span>Save: {lastSavedAt ? new Date(lastSavedAt).toLocaleTimeString() : 'not saved yet'}</span>
         <div className="button-row">
           <button onClick={onEndTurn}>End Turn</button>
           <button onClick={onNewWorld}>New World</button>
+          <button onClick={onSaveGame}>Save</button>
+          <button onClick={onLoadGame}>Load</button>
         </div>
       </section>
 

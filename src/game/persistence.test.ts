@@ -1,0 +1,31 @@
+import { describe, expect, it } from 'vitest'
+import { generateWorld } from '../core/worldgen/generateWorld'
+import { deserializeWorld, serializeWorld } from './persistence'
+
+describe('game persistence', () => {
+  it('serializes and deserializes world snapshots', () => {
+    const world = generateWorld(6400)
+    const serialized = serializeWorld(world)
+    const loaded = deserializeWorld(serialized)
+    expect(loaded.world).toBeDefined()
+    expect(loaded.timestamp).toBeTypeOf('number')
+    expect(loaded.world?.seed).toBe(world.seed)
+    expect(loaded.world?.turn).toBe(world.turn)
+    expect(loaded.world?.playerId).toBe(world.playerId)
+  })
+
+  it('migrates settlements missing meta defaults', () => {
+    const world = generateWorld(6401)
+    const settlement = Object.values(world.settlements)[0]
+    // simulate older save payload without meta
+    // @ts-expect-error legacy payload intentionally omits field
+    delete settlement.meta
+    const serialized = serializeWorld(world)
+    const loaded = deserializeWorld(serialized)
+    const loadedSettlement = loaded.world?.settlements[settlement.id]
+    expect(loadedSettlement?.meta.cropStage).toBe('dormant')
+    expect(loadedSettlement?.meta.foodStress).toBe(0)
+    expect(loadedSettlement?.meta.prosperity).toBe(40)
+  })
+})
+

@@ -3,6 +3,7 @@ import { generateWorld } from '../worldgen/generateWorld'
 import { SeededRng } from '../random'
 import { setRelation, setWarState } from './diplomacy'
 import {
+  simulateJusticeEvents,
   simulateCourtPolitics,
   tryCorruptionCrackdown,
   tryDeclareManhunt,
@@ -174,6 +175,88 @@ describe('world events under conflict', () => {
     expect(message).toBeUndefined()
     expect(world.characters['stable-warband'].alive).toBe(true)
     expect(world.characters['stable-warband'].role).toBe('bandit')
+  })
+
+  it('peace corridors reduce manhunt trigger frequency for comparable legal pressure', () => {
+    const base = generateWorld(9324)
+    const player = base.characters[base.playerId]
+    const settlementId = base.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const kingdomId = base.settlements[settlementId].kingdomId
+    const partnerId = Object.keys(base.kingdoms).find((id) => id !== kingdomId)
+    expect(partnerId).toBeDefined()
+    if (!partnerId) return
+    base.turn = 8
+    base.kingdoms[kingdomId].policy.guardHostilityReputation = -10
+    base.kingdoms[kingdomId].policy.guardHostilityBounty = 14
+    player.meta.bounty = 40
+
+    let baselineTriggers = 0
+    let corridorTriggers = 0
+    for (let seed = 1; seed <= 60; seed += 1) {
+      const rngSeed = seed * 7919 + 137
+      const normalWorld = structuredClone(base)
+      const normalMessages = simulateJusticeEvents(normalWorld, new SeededRng(rngSeed))
+      if (normalMessages.some((line) => line.includes('declared a manhunt'))) baselineTriggers += 1
+
+      const corridorWorld = structuredClone(base)
+      corridorWorld.kingdoms[kingdomId].policy.peaceDividendPartnerKingdomId = partnerId
+      corridorWorld.kingdoms[partnerId].policy.peaceDividendPartnerKingdomId = kingdomId
+      corridorWorld.kingdoms[kingdomId].policy.peaceDividendUntilTurn = corridorWorld.turn + 12
+      corridorWorld.kingdoms[partnerId].policy.peaceDividendUntilTurn = corridorWorld.turn + 12
+      corridorWorld.kingdoms[kingdomId].policy.peaceDividendIntensity = 34
+      corridorWorld.kingdoms[partnerId].policy.peaceDividendIntensity = 34
+      setWarState(corridorWorld, kingdomId, partnerId, false)
+      setRelation(corridorWorld, kingdomId, partnerId, 18)
+      const corridorMessages = simulateJusticeEvents(corridorWorld, new SeededRng(rngSeed))
+      if (corridorMessages.some((line) => line.includes('declared a manhunt'))) corridorTriggers += 1
+    }
+
+    expect(corridorTriggers).toBeLessThan(baselineTriggers)
+  })
+
+  it('peace corridors increase amnesty decree frequency', () => {
+    const base = generateWorld(9325)
+    const player = base.characters[base.playerId]
+    const settlementId = base.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const kingdomId = base.settlements[settlementId].kingdomId
+    const partnerId = Object.keys(base.kingdoms).find((id) => id !== kingdomId)
+    expect(partnerId).toBeDefined()
+    if (!partnerId) return
+    base.turn = 10
+    base.kingdoms[kingdomId].policy.tradeStance = 'balanced'
+    base.kingdoms[kingdomId].policy.pardonGoldFactor = 0.95
+    base.kingdoms[kingdomId].policy.bountyDecayPerTick = 3
+    for (const key of Object.keys(base.kingdomConflicts)) {
+      base.kingdomConflicts[key] = false
+    }
+    player.meta.bounty = 26
+
+    let baselineAmnesty = 0
+    let corridorAmnesty = 0
+    for (let seed = 1; seed <= 70; seed += 1) {
+      const rngSeed = seed * 6151 + 211
+      const normalWorld = structuredClone(base)
+      const normalMessages = simulateJusticeEvents(normalWorld, new SeededRng(rngSeed))
+      if (normalMessages.some((line) => line.includes('amnesty decree'))) baselineAmnesty += 1
+
+      const corridorWorld = structuredClone(base)
+      corridorWorld.kingdoms[kingdomId].policy.peaceDividendPartnerKingdomId = partnerId
+      corridorWorld.kingdoms[partnerId].policy.peaceDividendPartnerKingdomId = kingdomId
+      corridorWorld.kingdoms[kingdomId].policy.peaceDividendUntilTurn = corridorWorld.turn + 12
+      corridorWorld.kingdoms[partnerId].policy.peaceDividendUntilTurn = corridorWorld.turn + 12
+      corridorWorld.kingdoms[kingdomId].policy.peaceDividendIntensity = 32
+      corridorWorld.kingdoms[partnerId].policy.peaceDividendIntensity = 32
+      setWarState(corridorWorld, kingdomId, partnerId, false)
+      setRelation(corridorWorld, kingdomId, partnerId, 20)
+      const corridorMessages = simulateJusticeEvents(corridorWorld, new SeededRng(rngSeed))
+      if (corridorMessages.some((line) => line.includes('amnesty decree'))) corridorAmnesty += 1
+    }
+
+    expect(corridorAmnesty).toBeGreaterThan(baselineAmnesty)
   })
 
   it('can declare local manhunts against high-bounty players', () => {

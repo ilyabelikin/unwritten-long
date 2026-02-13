@@ -2,6 +2,7 @@ import { keyFor, neighborsOf } from '../hex'
 import { SeededRng } from '../random'
 import { clamp } from '../utils'
 import { isAtWar, kingdomPairKey, relationBetween, setRelation } from './diplomacy'
+import { activePeaceCorridorForKingdom } from './peaceCorridor'
 import type { Character, Contract, Settlement, Species, World } from '../types'
 
 const wildlifeForTile = (rng: SeededRng): Species => {
@@ -290,10 +291,13 @@ export const simulateJusticeEvents = (world: World, rng: SeededRng): string[] =>
     const kingdomId = currentSettlement.kingdomId
     const policy = world.kingdoms[kingdomId]?.policy
     if (policy) {
+      const corridorIntensity = activePeaceCorridorForKingdom(world, kingdomId)?.intensity ?? 0
+      const corridorStrictnessRelief = corridorIntensity >= 34 ? 0.18 : corridorIntensity >= 18 ? 0.1 : 0
       const strictChance = clamp(
         0.24 +
           (policy.guardHostilityReputation > -15 ? 0.18 : 0) +
-          (policy.guardHostilityBounty < 18 ? 0.16 : 0),
+          (policy.guardHostilityBounty < 18 ? 0.16 : 0) -
+          corridorStrictnessRelief,
         0.1,
         0.68,
       )
@@ -308,7 +312,14 @@ export const simulateJusticeEvents = (world: World, rng: SeededRng): string[] =>
     const kingdomId = currentSettlement.kingdomId
     const policy = world.kingdoms[kingdomId]?.policy
     if (policy) {
-      const amnestyChance = policy.tradeStance === 'open' ? 0.32 : policy.tradeStance === 'balanced' ? 0.16 : 0.05
+      const corridorIntensity = activePeaceCorridorForKingdom(world, kingdomId)?.intensity ?? 0
+      const corridorAmnestyBonus = corridorIntensity >= 34 ? 0.16 : corridorIntensity >= 18 ? 0.08 : 0
+      const amnestyChance = clamp(
+        (policy.tradeStance === 'open' ? 0.32 : policy.tradeStance === 'balanced' ? 0.16 : 0.05) +
+          corridorAmnestyBonus,
+        0.05,
+        0.6,
+      )
       if (rng.chance(amnestyChance)) {
         const message = tryIssueAmnestyDecree(world, kingdomId)
         if (message) messages.push(message)
@@ -321,12 +332,14 @@ export const simulateJusticeEvents = (world: World, rng: SeededRng): string[] =>
     const kingdomId = kingdomIds[rng.int(0, kingdomIds.length - 1)]
     const policy = world.kingdoms[kingdomId]?.policy
     if (policy) {
+      const corridorIntensity = activePeaceCorridorForKingdom(world, kingdomId)?.intensity ?? 0
+      const corridorCrackdownRelief = corridorIntensity >= 34 ? 0.2 : corridorIntensity >= 18 ? 0.1 : 0
       const crackdownChance =
         policy.tradeStance === 'protectionist'
-          ? 0.46
+          ? clamp(0.46 - corridorCrackdownRelief, 0.05, 0.7)
           : kingdomInvolvedInWar(world, kingdomId)
-            ? 0.3
-            : 0.12
+            ? clamp(0.3 - corridorCrackdownRelief * 0.7, 0.05, 0.6)
+            : clamp(0.12 - corridorCrackdownRelief * 0.5, 0.03, 0.4)
       if (rng.chance(crackdownChance)) {
         const message = tryCorruptionCrackdown(world, kingdomId)
         if (message) messages.push(message)

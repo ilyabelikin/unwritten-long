@@ -102,6 +102,7 @@ Then open the printed localhost URL.
 - Criminal actions build bounty; guards escalate pursuit for wanted players.
 - Each kingdom enforces different legal thresholds (some crack down quickly, others are lenient).
 - During severe bounty spikes, kingdoms may dispatch temporary marshals under active manhunts.
+- Active peace corridors reduce manhunt pressure and increase chances of amnesty decrees in connected kingdoms.
 - Court coups can impose martial law, while stable courts may issue relief/trade edicts that reshape policy effects.
 - Faction dominance now shapes which edicts are likely (war hawk crackdowns, merchant trade fairs, reform relief).
 - Faction-backed contracts now bias incentives (security bounties, commerce goods, or civic aid rewards).

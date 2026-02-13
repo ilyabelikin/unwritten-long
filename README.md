@@ -29,6 +29,7 @@ A browser-based turn-based hex adventure simulation with:
 - High court-faction tension can now generate rivalry incidents with faction counter-mandate contracts.
 - Rival factions can now hold temporary truce summits, producing hybrid mandate contracts.
 - Truce summits now appear as multi-stage mandate chains with locked follow-up objectives.
+- Cross-kingdom diplomatic summit chains can appear for tense/war-torn pairs and stage ceasefire diplomacy.
 
 ## Tech
 
@@ -73,6 +74,7 @@ Then open the printed localhost URL.
 - **Patronage contracts** can require minimum court standing in addition to favor/reputation.
 - **Rivalry contracts** may target competing court factions and affect inter-faction standing on success/failure.
 - **Truce summit contracts** can require standing in both participating factions and grant joint standing gains.
+- **Diplomatic summit contracts** run as staged chains that improve inter-kingdom relations on completion.
 - **Summit chain stages** unlock sequentially and can collapse if a critical stage expires.
 - **Militia action**: spend tools to raise temporary local guards during dangerous periods.
 
@@ -93,6 +95,7 @@ Then open the printed localhost URL.
 - Rivalry mandate outcomes can raise your aligned faction standing while eroding rival faction standing.
 - Truce summit periods dampen faction tension spikes and can temporarily stabilize court politics.
 - Completing a full summit chain grants a lasting détente effect (lower tension, higher court stability).
+- Completing diplomatic summit chains can end wars once relations recover past ceasefire thresholds.
 - HP ≤ 0 resolves to death/survival rules; city visit restores HP to full.
 - Bears mostly hibernate in winter, with rare aggressive wake-ups.
 - Seasonal crop cycle and food stress drive migration/growth/decline pressure in settlements.

@@ -13,6 +13,13 @@ const activeContractForPlayer = (world: World): Contract | undefined =>
 const newContractId = (world: World, prefix: string, rng: SeededRng): string =>
   `${prefix}-${world.turn}-${rng.int(100, 999)}-${Object.keys(world.contracts).length + 1}`
 
+const favorForKingdom = (world: World, kingdomId: string): number =>
+  Number(world.playerKingdomFavor[kingdomId] ?? 0)
+
+const addFavorForKingdom = (world: World, kingdomId: string, amount: number): void => {
+  world.playerKingdomFavor[kingdomId] = clamp(favorForKingdom(world, kingdomId) + amount, 0, 100)
+}
+
 const createFoodDeliveryContract = (
   world: World,
   settlement: Settlement,
@@ -163,14 +170,29 @@ const createContractForSettlement = (
     1,
     4,
   )
+  let contract: Contract
   if ((hasWar || underSiege) && settlement.tier !== 'hamlet' && rng.chance(underSiege ? 0.75 : 0.5)) {
-    return createDefendContract(world, settlement, rng, level)
+    contract = createDefendContract(world, settlement, rng, level)
+  } else if (settlement.tier === 'city' && rng.chance(0.4)) {
+    contract = createEscortContract(world, settlement, rng, level)
+  } else if (pressure) {
+    contract = createFoodDeliveryContract(world, settlement, rng, level)
+  } else {
+    contract = createBanditHuntContract(world, settlement, rng, level)
   }
-  if (settlement.tier === 'city' && rng.chance(0.4)) {
-    return createEscortContract(world, settlement, rng, level)
+
+  const favor = favorForKingdom(world, settlement.kingdomId)
+  if (!contract.meta.campaign && favor >= 8 && rng.chance(favor >= 16 ? 0.45 : 0.22)) {
+    contract.level = clamp(contract.level + 1, 1, 4)
+    contract.requiredAmount = Math.ceil(contract.requiredAmount * 1.2)
+    contract.rewardReputation += 3
+    contract.rewardBountyReduction += 2
+    contract.rewardGoods.gold_ore = (contract.rewardGoods.gold_ore ?? 0) + 1
+    contract.meta.exclusive = true
+    contract.meta.minFavor = favor >= 16 ? 12 : 8
+    contract.meta.exclusiveTitle = favor >= 16 ? 'Noble Commission' : 'Trusted Assignment'
   }
-  if (pressure) return createFoodDeliveryContract(world, settlement, rng, level)
-  return createBanditHuntContract(world, settlement, rng, level)
+  return contract
 }
 
 const hasOpenCampaignChain = (world: World, kingdomId: string): boolean =>
@@ -342,6 +364,9 @@ export const simulateContractBoardTurn = (world: World, rng: SeededRng): string[
         }
       }
       if (wasActive) {
+        if (contract.assignedCharacterId === world.playerId) {
+          addFavorForKingdom(world, contract.issuerKingdomId, -2)
+        }
         messages.push(`Contract ${contract.id} expired before completion.`)
         if (chainId) {
           messages.push('A royal campaign chain collapsed after missing critical objectives.')
@@ -390,6 +415,8 @@ const rewardPlayerForContract = (world: World, contract: Contract): void => {
   player.meta.bounty = Math.max(0, Number(player.meta.bounty ?? 0) - contract.rewardBountyReduction)
   world.campaignProgress[contract.issuerKingdomId] =
     (world.campaignProgress[contract.issuerKingdomId] ?? 0) + (contract.meta.campaign ? 2 : 1)
+  const favorGain = (contract.meta.campaign ? 2 : 1) + Math.floor(contract.level / 2) + (contract.meta.exclusive ? 1 : 0)
+  addFavorForKingdom(world, contract.issuerKingdomId, favorGain)
   for (const [good, qty] of Object.entries(contract.rewardGoods) as [Good, number][]) {
     if (!qty || qty <= 0) continue
     player.inventory[good] = (player.inventory[good] ?? 0) + qty
@@ -496,6 +523,10 @@ export const acceptContractForPlayer = (world: World, contractId: string): strin
   const rng = new SeededRng(world.seed + world.turn * 29 + contractId.length)
   if (!contract) return ['Contract not found.']
   if (contract.status !== 'available') return ['That contract is no longer available.']
+  const minFavor = Number(contract.meta.minFavor ?? 0)
+  if (minFavor > 0 && favorForKingdom(world, contract.issuerKingdomId) < minFavor) {
+    return [`This contract requires kingdom favor ${minFavor}.`]
+  }
   if (contract.meta.locked) return ['This contract stage is locked until previous campaign objectives are done.']
   if (activeContractForPlayer(world)) return ['You already have an active contract.']
   if (player.ap < 1) return ['Not enough AP to accept a contract.']

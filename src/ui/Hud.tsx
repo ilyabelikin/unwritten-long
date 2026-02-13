@@ -1,6 +1,7 @@
 import { estimateGoodPrice } from '../core/sim/economy'
 import { SPECIES_LABEL } from '../core/data/content'
 import { relationBetween } from '../core/sim/diplomacy'
+import { favorRankTitle } from '../core/sim/favor'
 import type { Contract } from '../core/types'
 import type { Good, World } from '../core/types'
 import type { MapOverlayMode } from '../game/store'
@@ -88,6 +89,14 @@ export const Hud = ({
         <span>
           HP {player.hp}/{player.maxHp} · AP {player.ap}/{player.maxAp} · Reputation {player.reputation} · Bounty{' '}
           {Number(player.meta.bounty ?? 0)}
+        </span>
+        <span>
+          Local favor:{' '}
+          {playerSettlement
+            ? `${world.playerKingdomFavor[playerSettlement.kingdomId] ?? 0} (${favorRankTitle(
+                world.playerKingdomFavor[playerSettlement.kingdomId] ?? 0,
+              )})`
+            : 'n/a'}
         </span>
         <span>Save: {lastSavedAt ? new Date(lastSavedAt).toLocaleTimeString() : 'not saved yet'}</span>
         <div className="button-row">
@@ -205,6 +214,12 @@ export const Hud = ({
                             : `Defend settlement from ${contract.requiredAmount} hostile groups`}
                     </p>
                     <p>Tier: {contract.level}</p>
+                    {contract.meta.exclusive === true && (
+                      <p>
+                        Exclusive: {String(contract.meta.exclusiveTitle ?? 'Special commission')} · Min favor{' '}
+                        {Number(contract.meta.minFavor ?? 0)}
+                      </p>
+                    )}
                     {typeof contract.meta.campaignChainId === 'string' && (
                       <p>
                         Stage {Number(contract.meta.campaignStage)}/{Number(contract.meta.campaignTotalStages)}
@@ -364,6 +379,9 @@ export const Hud = ({
               <span>Tax: {(kingdom.policy.taxRate * 100).toFixed(0)}%</span>
               <span>Patrol: {kingdom.policy.patrolFocus.toFixed(2)}</span>
               <span>Campaign: {world.campaignProgress[kingdom.id] ?? 0}</span>
+              <span>
+                Favor: {world.playerKingdomFavor[kingdom.id] ?? 0} ({favorRankTitle(world.playerKingdomFavor[kingdom.id] ?? 0)})
+              </span>
             </div>
           ))}
         </div>

@@ -28,6 +28,10 @@ const reducePlayerBounty = (world: World, amount: number): void => {
   player.meta.bounty = Math.max(0, Number(player.meta.bounty ?? 0) - amount)
 }
 
+const adjustPlayerKingdomFavor = (world: World, kingdomId: string, delta: number): void => {
+  world.playerKingdomFavor[kingdomId] = clamp(Number(world.playerKingdomFavor[kingdomId] ?? 0) + delta, 0, 100)
+}
+
 const currentSettlementForPlayer = (world: World) => {
   const player = world.characters[world.playerId]
   if (!player?.alive) return undefined
@@ -616,6 +620,7 @@ export const playerDonateSupplies = (world: World): string[] => {
   player.ap -= 1
   player.reputation += Math.ceil(totalValue * 1.6)
   reducePlayerBounty(world, 6 + totalValue)
+  adjustPlayerKingdomFavor(world, settlement.kingdomId, 2 + Math.floor(totalValue / 3))
   settlement.meta.foodStress = clamp(settlement.meta.foodStress - totalValue * 2.8, 0, 100)
   settlement.meta.prosperity = clamp(settlement.meta.prosperity + totalValue * 1.5, 0, 100)
   const messages = [
@@ -660,6 +665,8 @@ export const playerSponsorTreaty = (world: World): string[] => {
   }
   player.reputation += 3
   reducePlayerBounty(world, 4)
+  adjustPlayerKingdomFavor(world, localKingdomId, 3)
+  adjustPlayerKingdomFavor(world, targetKingdomId, 1)
   const messages = [
     `You sponsored talks between ${world.kingdoms[localKingdomId].name} and ${world.kingdoms[targetKingdomId].name}.`,
   ]
@@ -692,6 +699,7 @@ export const playerRequestPardon = (world: World): string[] => {
   player.ap -= 1
   reducePlayerBounty(world, bounty)
   player.reputation += 4
+  adjustPlayerKingdomFavor(world, settlement.kingdomId, 2)
   const messages = [
     `${settlement.name} authorities granted a pardon. Your bounty has been cleared.`,
   ]
@@ -737,6 +745,7 @@ export const playerRallyMilitia = (world: World): string[] => {
   settlement.meta.prosperity = clamp(settlement.meta.prosperity + 2.5, 0, 100)
   settlement.meta.foodStress = clamp(settlement.meta.foodStress - 2, 0, 100)
   player.reputation += 2
+  adjustPlayerKingdomFavor(world, settlement.kingdomId, 1)
   world.messages = [...messages, ...world.messages].slice(0, 120)
   return messages
 }

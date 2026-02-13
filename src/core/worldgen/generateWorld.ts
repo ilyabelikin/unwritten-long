@@ -482,6 +482,13 @@ export const generateWorld = (seed = Date.now() % 100000): World => {
     },
     {} as Record<string, number>,
   )
+  const playerKingdomFavor = kingdomIds.reduce(
+    (acc, id) => {
+      acc[id] = 0
+      return acc
+    },
+    {} as Record<string, number>,
+  )
 
   const worldSkeleton: World = {
     seed,
@@ -494,6 +501,7 @@ export const generateWorld = (seed = Date.now() % 100000): World => {
     kingdomRelations,
     kingdomConflicts,
     campaignProgress,
+    playerKingdomFavor,
     contracts: {},
     characters: {},
     playerId: '',
@@ -543,6 +551,9 @@ export const generateWorld = (seed = Date.now() % 100000): World => {
   characters[player.id] = player
   worldSkeleton.playerId = player.id
   if (firstSettlement) firstSettlement.populationIds.push(player.id)
+  if (firstSettlement) {
+    worldSkeleton.playerKingdomFavor[firstSettlement.kingdomId] = 6
+  }
 
   for (const settlement of Object.values(settlements)) {
     const center = settlement.tiles[0]

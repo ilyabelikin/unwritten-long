@@ -332,5 +332,77 @@ describe('contracts system', () => {
     }
     expect(foundDefense).toBe(true)
   })
+
+  it('increases player kingdom favor after contract completion', () => {
+    const world = generateWorld(9421)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const settlement = world.settlements[settlementId]
+    const kingdomId = settlement.kingdomId
+    const favorBefore = world.playerKingdomFavor[kingdomId]
+    const contractId = `favor-food-${world.turn}`
+    world.contracts[contractId] = {
+      id: contractId,
+      settlementId,
+      issuerKingdomId: kingdomId,
+      kind: 'deliver_food',
+      level: 1,
+      status: 'available',
+      good: 'grain',
+      requiredAmount: 4,
+      progress: 0,
+      rewardReputation: 4,
+      rewardBountyReduction: 3,
+      rewardGoods: {},
+      expiresTurn: world.turn + 20,
+      meta: {},
+    }
+    player.inventory.grain = 6
+    playerAcceptContract(world, contractId)
+    playerProgressContract(world)
+    expect(world.playerKingdomFavor[kingdomId]).toBeGreaterThan(favorBefore)
+  })
+
+  it('gates exclusive contracts by favor requirement', () => {
+    const world = generateWorld(9422)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const settlement = world.settlements[settlementId]
+    const kingdomId = settlement.kingdomId
+    const contractId = `exclusive-${world.turn}`
+    world.contracts[contractId] = {
+      id: contractId,
+      settlementId,
+      issuerKingdomId: kingdomId,
+      kind: 'defend_settlement',
+      level: 3,
+      status: 'available',
+      requiredAmount: 2,
+      progress: 0,
+      rewardReputation: 10,
+      rewardBountyReduction: 8,
+      rewardGoods: { gold_ore: 1 },
+      expiresTurn: world.turn + 18,
+      meta: {
+        exclusive: true,
+        minFavor: 12,
+        exclusiveTitle: 'Noble Commission',
+      },
+    }
+
+    world.playerKingdomFavor[kingdomId] = 5
+    const denied = playerAcceptContract(world, contractId)
+    expect(denied[0]).toContain('requires kingdom favor')
+    expect(world.contracts[contractId].status).toBe('available')
+
+    world.playerKingdomFavor[kingdomId] = 15
+    const accepted = playerAcceptContract(world, contractId)
+    expect(accepted[0]).toContain('accepted')
+    expect(world.contracts[contractId].status).toBe('active')
+  })
 })
 

@@ -134,3 +134,23 @@ button:hover {
   background: #4a2525;
   border-color: #8f4b4b;
 }
+
+.policy-grid {
+  margin-top: 0.55rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.policy-card {
+  border: 1px solid #3b4f63;
+  border-radius: 7px;
+  padding: 0.3rem 0.45rem;
+  display: grid;
+  gap: 0.12rem;
+  background: #1a2430;
+  font-size: 0.78rem;
+}
+
+.policy-card strong {
+  font-size: 0.8rem;
+}

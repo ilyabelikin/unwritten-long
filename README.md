@@ -10,6 +10,7 @@ A browser-based turn-based hex adventure simulation with:
 - On-map combat and interactions (attack wildlife, rob caravans, guard retaliation on low reputation / high bounty).
 - Wildlife, bandits, migrants, and monsters roaming the world.
 - Local save/load support with world-state persistence.
+- Kingdom diplomacy with dynamic relations, conflicts, policy shifts, and tariff-aware trade risk.
 
 ## Tech
 
@@ -38,6 +39,7 @@ Then open the printed localhost URL.
 - **End Turn** button: spend remaining AP and advance immediately.
 - **New World** button: regenerate with a fresh seed.
 - **Save / Load** buttons: persist and restore game state from browser local storage.
+- **Overlay selector**: switch map intel between terrain, kingdoms, economy, and danger.
 
 ## Rules implemented
 
@@ -51,6 +53,7 @@ Then open the printed localhost URL.
 - Bears mostly hibernate in winter, with rare aggressive wake-ups.
 - Seasonal crop cycle and food stress drive migration/growth/decline pressure in settlements.
 - Wildlife ecology includes predator-prey interactions and seasonal births/attrition.
+- Kingdom conflicts can trigger frontier clashes; policies (tax/patrol/trade stance) evolve over time.
 
 ## Tests
 

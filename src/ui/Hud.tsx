@@ -43,6 +43,7 @@ export const Hud = ({
   const selectedCharacter = world.selectedCharacterId ? world.characters[world.selectedCharacterId] : undefined
   const selectedSettlement = selectedTile?.settlementId ? world.settlements[selectedTile.settlementId] : undefined
   const kingdomIds = Object.keys(world.kingdoms)
+  const activeConflicts = Object.keys(world.kingdomConflicts).filter((key) => world.kingdomConflicts[key])
 
   return (
     <aside className="hud">
@@ -180,6 +181,15 @@ export const Hud = ({
 
       <section className="panel">
         <h2>Kingdom Diplomacy</h2>
+        <p>
+          Active conflicts:{' '}
+          {activeConflicts.length > 0
+            ? activeConflicts
+                .map((pair) => pair.split('|'))
+                .map(([a, b]) => `${world.kingdoms[a]?.name ?? a} vs ${world.kingdoms[b]?.name ?? b}`)
+                .join(' · ')
+            : 'none'}
+        </p>
         {kingdomIds.length > 1 ? (
           <ul className="compact-list">
             {kingdomIds.flatMap((left, idx) =>
@@ -199,6 +209,18 @@ export const Hud = ({
         ) : (
           <p>Not enough kingdoms for diplomatic tracking.</p>
         )}
+        <div className="policy-grid">
+          {Object.values(world.kingdoms).map((kingdom) => (
+            <div key={kingdom.id} className="policy-card">
+              <strong>{kingdom.name}</strong>
+              <span>
+                Trade: <em>{kingdom.policy.tradeStance}</em>
+              </span>
+              <span>Tax: {(kingdom.policy.taxRate * 100).toFixed(0)}%</span>
+              <span>Patrol: {kingdom.policy.patrolFocus.toFixed(2)}</span>
+            </div>
+          ))}
+        </div>
       </section>
     </aside>
   )

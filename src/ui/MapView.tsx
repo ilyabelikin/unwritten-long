@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { axialToPixel, polygonPoints } from '../core/hex'
+import { axialToPixel, keyFor, neighborsOf, polygonPoints } from '../core/hex'
+import { kingdomPairKey } from '../core/sim/diplomacy'
 import type { Character, Terrain, Tile, World } from '../core/types'
 import type { MapOverlayMode } from '../game/store'
 import './MapView.css'
@@ -114,8 +115,26 @@ export const MapView = ({ world, overlayMode, onTileClick, onCharacterClick }: M
       if (danger <= 0) continue
       scores[actor.location] = (scores[actor.location] ?? 0) + danger
     }
+
+    const activeWarPairs = Object.keys(world.kingdomConflicts).filter((key) => world.kingdomConflicts[key])
+    if (activeWarPairs.length > 0) {
+      for (const tileId of world.tileOrder) {
+        const tile = world.tiles[tileId]
+        if (!tile.kingdomId) continue
+        const tileKingdomId = tile.kingdomId
+        const isConflictEdge = neighborsOf(tile.coord).some((neighbor) => {
+          const neighborTile = world.tiles[keyFor(neighbor.q, neighbor.r)]
+          if (!neighborTile?.kingdomId || neighborTile.kingdomId === tileKingdomId) return false
+          const pair = kingdomPairKey(tileKingdomId, neighborTile.kingdomId)
+          return world.kingdomConflicts[pair]
+        })
+        if (isConflictEdge) {
+          scores[tileId] = (scores[tileId] ?? 0) + 1.9
+        }
+      }
+    }
     return scores
-  }, [world.characters, world.tileOrder])
+  }, [world.characters, world.kingdomConflicts, world.tileOrder, world.tiles])
 
   const economyByTile = useMemo(() => {
     const scores: Record<string, number> = {}

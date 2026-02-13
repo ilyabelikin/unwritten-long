@@ -565,6 +565,31 @@ export const playerRob = (world: World, traderId: string, confirm = false): stri
   return messages
 }
 
+export const playerCoordinateEscort = (world: World, traderId: string): string[] => {
+  const player = world.characters[world.playerId]
+  const trader = world.characters[traderId]
+  if (!player || !trader || trader.role !== 'trader' || !trader.alive) {
+    return ['No escort caravan to coordinate.']
+  }
+  if (player.location !== trader.location) return ['Move onto the caravan tile to coordinate escort.']
+  if (player.ap < 1) return ['Not enough AP to coordinate escort.']
+
+  const contractId = trader.meta.contractId as string | undefined
+  if (!contractId) return ['This caravan is not linked to your contract.']
+  const contract = world.contracts[contractId]
+  if (!contract || contract.status !== 'active' || contract.assignedCharacterId !== player.id) {
+    return ['This caravan is not linked to your active contract.']
+  }
+  if (contract.kind !== 'escort_caravan') return ['This action only applies to escort contracts.']
+
+  player.ap -= 1
+  contract.meta.playerMetCaravan = true
+  trader.hp = Math.min(trader.maxHp, trader.hp + 1)
+  const messages = ['You coordinated with the caravan and improved its readiness.']
+  world.messages = [...messages, ...world.messages].slice(0, 120)
+  return messages
+}
+
 export const playerDonateSupplies = (world: World): string[] => {
   const player = world.characters[world.playerId]
   const settlement = currentSettlementForPlayer(world)

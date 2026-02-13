@@ -5,6 +5,7 @@ import {
   determineSeasonFromTurn,
   movementCost,
   playerDonateSupplies,
+  playerCoordinateEscort,
   playerRequestPardon,
   playerRallyMilitia,
   playerRob,
@@ -305,6 +306,67 @@ describe('turn simulation', () => {
       advanceWorldTurn(world, world.turn)
     }
     expect(militia.alive).toBe(false)
+  })
+
+  it('coordinating escort marks caravan contact for active contract', () => {
+    const world = generateWorld(9098)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const settlement = world.settlements[settlementId]
+    const destination = Object.values(world.settlements).find((candidate) => candidate.id !== settlementId)
+    expect(destination).toBeDefined()
+    if (!destination) return
+
+    const contractId = `escort-active-${world.turn}`
+    world.contracts[contractId] = {
+      id: contractId,
+      settlementId,
+      issuerKingdomId: settlement.kingdomId,
+      kind: 'escort_caravan',
+      level: 2,
+      status: 'active',
+      assignedCharacterId: player.id,
+      requiredAmount: 8,
+      progress: 0,
+      rewardReputation: 8,
+      rewardBountyReduction: 6,
+      rewardGoods: { tools: 1 },
+      expiresTurn: world.turn + 20,
+      meta: {
+        destinationSettlementId: destination.id,
+        playerMetCaravan: false,
+        caravanDelivered: false,
+      },
+    }
+    world.characters['escort-trader'] = {
+      id: 'escort-trader',
+      name: 'Escort Caravan',
+      role: 'trader',
+      species: 'human',
+      hp: 6,
+      maxHp: 8,
+      ap: 4,
+      maxAp: 4,
+      age: 25,
+      skills: { travel: 5, combat: 2 },
+      history: [],
+      traits: ['cautious'],
+      flaws: ['fragile'],
+      reputation: 0,
+      location: player.location,
+      homeSettlementId: destination.id,
+      targetTileId: destination.tiles[0],
+      alive: true,
+      inventory: { grain: 8 },
+      meta: { contractId },
+    }
+    const playerApBefore = player.ap
+    const result = playerCoordinateEscort(world, 'escort-trader')
+    expect(result[0]).toContain('coordinated')
+    expect(world.contracts[contractId].meta.playerMetCaravan).toBe(true)
+    expect(player.ap).toBeLessThan(playerApBefore)
   })
 })
 

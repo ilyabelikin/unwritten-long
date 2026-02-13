@@ -7,6 +7,7 @@ import {
   playerAttackOnTile,
   playerDonateSupplies,
   playerAcceptContract,
+  playerCoordinateEscort,
   playerRallyMilitia,
   playerRequestPardon,
   playerProgressContract,
@@ -107,7 +108,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     const messages: string[] = []
     if (player.location === target.location) {
       if (target.role === 'trader') {
-        messages.push(...playerRob(world, target.id, false))
+        const contractId = target.meta.contractId as string | undefined
+        const contract = contractId ? world.contracts[contractId] : undefined
+        if (contract && contract.assignedCharacterId === player.id && contract.status === 'active') {
+          messages.push(...playerCoordinateEscort(world, target.id))
+        } else {
+          messages.push(...playerRob(world, target.id, false))
+        }
       } else if (target.id !== world.playerId) {
         messages.push(...playerAttackOnTile(world, target.id))
       }

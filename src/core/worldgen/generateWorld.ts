@@ -5,7 +5,21 @@ import { shortestPath } from '../pathing'
 import { SeededRng, hashNoise } from '../random'
 import { seedInitialContracts } from '../sim/contracts'
 import { buildInitialConflicts, buildInitialRelations } from '../sim/diplomacy'
-import type { BuildingInstance, BuildingType, Character, Good, Kingdom, Resource, Season, Settlement, SettlementTier, Species, Tile, World } from '../types'
+import type {
+  BuildingInstance,
+  BuildingType,
+  Character,
+  CourtFaction,
+  Good,
+  Kingdom,
+  Resource,
+  Season,
+  Settlement,
+  SettlementTier,
+  Species,
+  Tile,
+  World,
+} from '../types'
 import { createGoodRecord } from '../utils'
 
 const WORLD_WIDTH = 46
@@ -502,6 +516,11 @@ export const generateWorld = (seed = Date.now() % 100000): World => {
     },
     {} as Record<string, number>,
   )
+  const playerCourtFavor: Record<CourtFaction, number> = {
+    merchant_bloc: 0,
+    war_hawks: 0,
+    reformers: 0,
+  }
 
   const worldSkeleton: World = {
     seed,
@@ -515,6 +534,7 @@ export const generateWorld = (seed = Date.now() % 100000): World => {
     kingdomConflicts,
     campaignProgress,
     playerKingdomFavor,
+    playerCourtFavor,
     contracts: {},
     characters: {},
     playerId: '',
@@ -566,6 +586,8 @@ export const generateWorld = (seed = Date.now() % 100000): World => {
   if (firstSettlement) firstSettlement.populationIds.push(player.id)
   if (firstSettlement) {
     worldSkeleton.playerKingdomFavor[firstSettlement.kingdomId] = 6
+    const homeFaction = worldSkeleton.kingdoms[firstSettlement.kingdomId]?.policy.courtFaction
+    if (homeFaction) worldSkeleton.playerCourtFavor[homeFaction] = 4
   }
 
   for (const settlement of Object.values(settlements)) {

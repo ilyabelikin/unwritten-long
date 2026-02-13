@@ -30,6 +30,8 @@ describe('game persistence', () => {
     // @ts-expect-error legacy payload intentionally omits field
     delete world.playerKingdomFavor
     // @ts-expect-error legacy payload intentionally omits field
+    delete world.playerCourtFavor
+    // @ts-expect-error legacy payload intentionally omits field
     delete world.contracts
     // @ts-expect-error legacy payload intentionally omits field
     delete kingdom.policy
@@ -45,6 +47,8 @@ describe('game persistence', () => {
     expect(Object.keys(loaded.world?.kingdomConflicts ?? {})).not.toHaveLength(0)
     expect(Object.keys(loaded.world?.campaignProgress ?? {})).not.toHaveLength(0)
     expect(Object.keys(loaded.world?.playerKingdomFavor ?? {})).not.toHaveLength(0)
+    expect(loaded.world?.playerCourtFavor).toBeDefined()
+    expect(Number(loaded.world?.playerCourtFavor.merchant_bloc ?? -1)).toBeGreaterThanOrEqual(0)
     expect(loaded.world?.contracts).toBeDefined()
     expect(loadedKingdom?.policy.tradeStance).toBe('balanced')
     expect(loadedKingdom?.policy.guardHostilityReputation).toBe(-18)

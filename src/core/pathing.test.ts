@@ -52,6 +52,11 @@ const createMiniWorld = (): World => ({
   kingdomConflicts: {},
   campaignProgress: {},
   playerKingdomFavor: {},
+  playerCourtFavor: {
+    merchant_bloc: 0,
+    war_hawks: 0,
+    reformers: 0,
+  },
   contracts: {},
   playerId: 'player',
   turn: 0,

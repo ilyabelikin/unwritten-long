@@ -14,6 +14,7 @@ export type SettlementTier = 'hamlet' | 'village' | 'town' | 'city'
 export type CropStage = 'dormant' | 'sown' | 'growing' | 'ripe'
 export type ContractKind = 'deliver_food' | 'hunt_bandits' | 'escort_caravan' | 'defend_settlement'
 export type ContractStatus = 'available' | 'active' | 'completed' | 'expired'
+export type CourtFaction = 'merchant_bloc' | 'war_hawks' | 'reformers'
 export type BuildingType =
   | 'village_home'
   | 'fisher_home'
@@ -143,7 +144,7 @@ export interface Kingdom {
     pardonGoldFactor: number
     courtStability: number
     nobleInfluence: number
-    courtFaction: 'merchant_bloc' | 'war_hawks' | 'reformers'
+    courtFaction: CourtFaction
     factionTension: number
     activeEdict: 'none' | 'martial_law' | 'tax_relief' | 'trade_fair'
     edictExpiresTurn: number
@@ -182,6 +183,7 @@ export interface World {
   kingdomConflicts: Record<string, boolean>
   campaignProgress: Record<string, number>
   playerKingdomFavor: Record<string, number>
+  playerCourtFavor: Record<CourtFaction, number>
   contracts: Record<string, Contract>
   playerId: string
   turn: number

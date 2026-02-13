@@ -21,6 +21,12 @@ const COURT_DIRECTIVE_BY_FACTION: Record<CourtFaction, string> = {
   reformers: 'Civic Reform Petition',
 }
 
+const COURT_PATRON_TITLE_BY_FACTION: Record<CourtFaction, string> = {
+  merchant_bloc: 'Guild Patronage',
+  war_hawks: 'Marshal Patronage',
+  reformers: 'Civic Patronage',
+}
+
 const activeContractForPlayer = (world: World): Contract | undefined =>
   Object.values(world.contracts).find(
     (contract) => contract.status === 'active' && contract.assignedCharacterId === world.playerId,
@@ -34,6 +40,16 @@ const favorForKingdom = (world: World, kingdomId: string): number =>
 
 const addFavorForKingdom = (world: World, kingdomId: string, amount: number): void => {
   world.playerKingdomFavor[kingdomId] = clamp(favorForKingdom(world, kingdomId) + amount, 0, 100)
+}
+
+const parseCourtFaction = (value: unknown): CourtFaction | undefined =>
+  value === 'merchant_bloc' || value === 'war_hawks' || value === 'reformers' ? value : undefined
+
+const courtFavorForFaction = (world: World, faction: CourtFaction): number =>
+  Number(world.playerCourtFavor[faction] ?? 0)
+
+const addCourtFavor = (world: World, faction: CourtFaction, amount: number): void => {
+  world.playerCourtFavor[faction] = clamp(courtFavorForFaction(world, faction) + amount, 0, 100)
 }
 
 const courtFactionForSettlement = (world: World, settlement: Settlement): CourtFaction =>
@@ -87,6 +103,45 @@ const applyCourtFactionContractFlavor = (
   if (minRep > 0) {
     contract.meta.minReputation = clamp(Math.max(0, minRep - 1), 0, 100)
   }
+  return contract
+}
+
+const applyCourtPatronage = (world: World, contract: Contract, rng: SeededRng): Contract => {
+  if (contract.meta.campaign) return contract
+  const faction = parseCourtFaction(contract.meta.courtFaction)
+  if (!faction) return contract
+
+  const standing = courtFavorForFaction(world, faction)
+  const threshold = faction === 'merchant_bloc' ? 12 : faction === 'war_hawks' ? 10 : 9
+  if (standing < threshold) return contract
+  const chance = standing >= 24 ? 0.48 : 0.24
+  if (!rng.chance(chance)) return contract
+
+  contract.meta.courtPatronage = true
+  contract.meta.minCourtFavor = standing >= 24 ? 18 : threshold
+  contract.meta.courtPatronTitle = COURT_PATRON_TITLE_BY_FACTION[faction]
+  contract.level = clamp(contract.level + (standing >= 24 ? 1 : 0), 1, 4)
+  contract.requiredAmount = Math.ceil(contract.requiredAmount * (faction === 'war_hawks' ? 1.08 : 1.04))
+
+  if (faction === 'merchant_bloc') {
+    contract.rewardReputation += 2
+    contract.rewardGoods.tools = (contract.rewardGoods.tools ?? 0) + 2
+    contract.rewardGoods.iron_ingot = (contract.rewardGoods.iron_ingot ?? 0) + 1
+    return contract
+  }
+
+  if (faction === 'war_hawks') {
+    contract.rewardBountyReduction += 4
+    contract.rewardGoods.tools = (contract.rewardGoods.tools ?? 0) + 1
+    contract.meta.minReputation = clamp(Math.max(Number(contract.meta.minReputation ?? 0), 14) + 2, 0, 100)
+    return contract
+  }
+
+  contract.rewardReputation += 3
+  contract.rewardBountyReduction += 1
+  contract.rewardGoods.grain = (contract.rewardGoods.grain ?? 0) + 2
+  contract.rewardGoods.vegetables = (contract.rewardGoods.vegetables ?? 0) + 1
+  contract.meta.minReputation = clamp(Math.max(0, Number(contract.meta.minReputation ?? 0) - 1), 0, 100)
   return contract
 }
 
@@ -329,7 +384,8 @@ const createContractForSettlement = (
   if (!contract.meta.campaign && favor >= 8 && rng.chance(favor >= 16 ? 0.45 : 0.22)) {
     contract = createExclusiveContractForKingdom(world, settlement, rng, level, favor, hasWar, underSiege)
   }
-  return applyCourtFactionContractFlavor(world, settlement, contract)
+  contract = applyCourtFactionContractFlavor(world, settlement, contract)
+  return applyCourtPatronage(world, contract, rng)
 }
 
 const hasOpenCampaignChain = (world: World, kingdomId: string): boolean =>
@@ -508,6 +564,8 @@ export const simulateContractBoardTurn = (world: World, rng: SeededRng): string[
       if (wasActive) {
         if (contract.assignedCharacterId === world.playerId) {
           addFavorForKingdom(world, contract.issuerKingdomId, -2)
+          const faction = parseCourtFaction(contract.meta.courtFaction)
+          if (faction) addCourtFavor(world, faction, -1)
         }
         messages.push(`Contract ${contract.id} expired before completion.`)
         if (chainId) {
@@ -559,6 +617,15 @@ const rewardPlayerForContract = (world: World, contract: Contract): void => {
     (world.campaignProgress[contract.issuerKingdomId] ?? 0) + (contract.meta.campaign ? 2 : 1)
   const favorGain = (contract.meta.campaign ? 2 : 1) + Math.floor(contract.level / 2) + (contract.meta.exclusive ? 1 : 0)
   addFavorForKingdom(world, contract.issuerKingdomId, favorGain)
+  const faction = parseCourtFaction(contract.meta.courtFaction)
+  if (faction) {
+    const courtGain =
+      1 +
+      Math.floor(contract.level / 2) +
+      (contract.meta.courtPatronage ? 1 : 0) +
+      (contract.meta.campaign ? 1 : 0)
+    addCourtFavor(world, faction, courtGain)
+  }
   for (const [good, qty] of Object.entries(contract.rewardGoods) as [Good, number][]) {
     if (!qty || qty <= 0) continue
     player.inventory[good] = (player.inventory[good] ?? 0) + qty
@@ -676,6 +743,16 @@ export const acceptContractForPlayer = (world: World, contractId: string): strin
     return [
       `This contract requires reputation ${minReputation} (${neededTitle}). Your reputation is ${player.reputation}.`,
     ]
+  }
+  const minCourtFavor = Number(contract.meta.minCourtFavor ?? 0)
+  if (minCourtFavor > 0) {
+    const faction = parseCourtFaction(contract.meta.courtFaction)
+    if (!faction) return ['This contract has invalid court patronage requirements.']
+    const courtStanding = courtFavorForFaction(world, faction)
+    if (courtStanding < minCourtFavor) {
+      const factionName = COURT_DIRECTIVE_BY_FACTION[faction]
+      return [`This contract requires ${factionName} standing ${minCourtFavor}. Current: ${courtStanding}.`]
+    }
   }
   if (activeContractForPlayer(world)) return ['You already have an active contract.']
   if (player.ap < 1) return ['Not enough AP to accept a contract.']

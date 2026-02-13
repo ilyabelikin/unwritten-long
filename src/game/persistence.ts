@@ -138,6 +138,21 @@ const ensurePlayerKingdomFavor = (world: World): void => {
   }
 }
 
+const ensurePlayerCourtFavor = (world: World): void => {
+  if (!world.playerCourtFavor) {
+    world.playerCourtFavor = {
+      merchant_bloc: 0,
+      war_hawks: 0,
+      reformers: 0,
+    }
+  }
+  for (const faction of ['merchant_bloc', 'war_hawks', 'reformers'] as const) {
+    if (!Number.isFinite(world.playerCourtFavor[faction])) {
+      world.playerCourtFavor[faction] = 0
+    }
+  }
+}
+
 export const serializeWorld = (world: World): string =>
   JSON.stringify({
     version: SAVE_VERSION,
@@ -159,6 +174,7 @@ export const deserializeWorld = (payload: string): { world?: World; timestamp?: 
     ensureKingdomPoliciesAndConflicts(world)
     ensureCampaignProgress(world)
     ensurePlayerKingdomFavor(world)
+    ensurePlayerCourtFavor(world)
     ensureContracts(world)
     world.messages = world.messages ?? []
     return {

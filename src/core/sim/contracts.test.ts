@@ -559,5 +559,80 @@ describe('contracts system', () => {
     expect(merchantContract.kind).toBe('defend_settlement')
     expect(warHawkContract.rewardBountyReduction).toBeGreaterThan(merchantContract.rewardBountyReduction)
   })
+
+  it('increases player court standing when court-directed contracts are completed', () => {
+    const world = generateWorld(9429)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const settlement = world.settlements[settlementId]
+    const contractId = `court-standing-${world.turn}`
+    world.contracts[contractId] = {
+      id: contractId,
+      settlementId,
+      issuerKingdomId: settlement.kingdomId,
+      kind: 'deliver_food',
+      level: 2,
+      status: 'available',
+      good: 'grain',
+      requiredAmount: 4,
+      progress: 0,
+      rewardReputation: 6,
+      rewardBountyReduction: 3,
+      rewardGoods: {},
+      expiresTurn: world.turn + 20,
+      meta: {
+        courtFaction: 'reformers',
+        courtDirective: 'Civic Reform Petition',
+      },
+    }
+    const before = world.playerCourtFavor.reformers
+    player.inventory.grain = 6
+    playerAcceptContract(world, contractId)
+    playerProgressContract(world)
+    expect(world.playerCourtFavor.reformers).toBeGreaterThan(before)
+  })
+
+  it('gates patronage contracts by faction standing requirement', () => {
+    const world = generateWorld(9430)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const settlement = world.settlements[settlementId]
+    const contractId = `patronage-${world.turn}`
+    world.contracts[contractId] = {
+      id: contractId,
+      settlementId,
+      issuerKingdomId: settlement.kingdomId,
+      kind: 'defend_settlement',
+      level: 3,
+      status: 'available',
+      requiredAmount: 2,
+      progress: 0,
+      rewardReputation: 10,
+      rewardBountyReduction: 7,
+      rewardGoods: { iron_ingot: 1 },
+      expiresTurn: world.turn + 20,
+      meta: {
+        courtFaction: 'merchant_bloc',
+        courtDirective: 'Commercial Charter',
+        courtPatronage: true,
+        courtPatronTitle: 'Guild Patronage',
+        minCourtFavor: 12,
+      },
+    }
+
+    world.playerCourtFavor.merchant_bloc = 5
+    const denied = playerAcceptContract(world, contractId)
+    expect(denied[0]).toContain('standing 12')
+    expect(world.contracts[contractId].status).toBe('available')
+
+    world.playerCourtFavor.merchant_bloc = 16
+    const accepted = playerAcceptContract(world, contractId)
+    expect(accepted[0]).toContain('accepted')
+    expect(world.contracts[contractId].status).toBe('active')
+  })
 })
 

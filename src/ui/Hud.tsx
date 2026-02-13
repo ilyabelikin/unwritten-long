@@ -121,6 +121,10 @@ export const Hud = ({
               )})`
             : 'n/a'}
         </span>
+        <span>
+          Court standing: Merchant {world.playerCourtFavor.merchant_bloc ?? 0} · Hawks{' '}
+          {world.playerCourtFavor.war_hawks ?? 0} · Reformers {world.playerCourtFavor.reformers ?? 0}
+        </span>
         {manhuntActive && <span>Law alert: {manhuntActive.name} manhunt active until turn {manhuntExpiresTurn}</span>}
         <span>Save: {lastSavedAt ? new Date(lastSavedAt).toLocaleTimeString() : 'not saved yet'}</span>
         <div className="button-row">
@@ -219,6 +223,9 @@ export const Hud = ({
                     {showContractFaction(activeContract.meta.courtFaction)}
                   </p>
                 )}
+                {activeContract.meta.courtPatronage === true && (
+                  <p>Patronage tier: {String(activeContract.meta.courtPatronTitle ?? 'Court Patronage')}</p>
+                )}
                 {activeContract.meta.exclusive === true && (
                   <p>
                     Exclusive: {showExclusivePool(activeContract.meta.exclusivePool)} ·{' '}
@@ -242,6 +249,15 @@ export const Hud = ({
                   (() => {
                     const minReputation = Number(contract.meta.minReputation ?? 0)
                     const reputationLocked = minReputation > 0 && player.reputation < minReputation
+                    const minCourtFavor = Number(contract.meta.minCourtFavor ?? 0)
+                    const factionKey =
+                      contract.meta.courtFaction === 'merchant_bloc' ||
+                      contract.meta.courtFaction === 'war_hawks' ||
+                      contract.meta.courtFaction === 'reformers'
+                        ? contract.meta.courtFaction
+                        : undefined
+                    const courtStanding = factionKey ? Number(world.playerCourtFavor[factionKey] ?? 0) : 0
+                    const courtLocked = minCourtFavor > 0 && courtStanding < minCourtFavor
                     return (
                       <div key={contract.id} className="contract-card">
                         <p>
@@ -267,6 +283,14 @@ export const Hud = ({
                             {showContractFaction(contract.meta.courtFaction)}
                           </p>
                         )}
+                        {contract.meta.courtPatronage === true && (
+                          <p>Patronage: {String(contract.meta.courtPatronTitle ?? 'Court Patronage')}</p>
+                        )}
+                        {minCourtFavor > 0 && (
+                          <p>
+                            Requires faction standing: {minCourtFavor} ({courtStanding})
+                          </p>
+                        )}
                         {minReputation > 0 && (
                           <p>
                             Requires rank: {campaignRankTitleForReputation(minReputation)} ({minReputation} rep)
@@ -285,10 +309,12 @@ export const Hud = ({
                         </p>
                         <button
                           onClick={() => onAcceptContract(contract.id)}
-                          disabled={contract.meta.locked === true || reputationLocked}
+                          disabled={contract.meta.locked === true || reputationLocked || courtLocked}
                         >
                           {contract.meta.locked === true
                             ? 'Locked Stage'
+                            : courtLocked
+                              ? 'Need Faction Standing'
                             : reputationLocked
                               ? 'Need Higher Rank'
                               : 'Accept Contract'}

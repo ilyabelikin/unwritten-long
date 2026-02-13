@@ -82,6 +82,7 @@ Then open the printed localhost URL.
 - **Summit chain stages** unlock sequentially and can collapse if a critical stage expires.
 - **Peace dividend status** is shown per kingdom (partner, intensity, and expiry turn).
 - **Peace-dividend opportunities** can appear on contract boards as boom-time escort/supply commissions.
+- **Boom-time contract outcomes** can reinforce or weaken active peace dividends depending on success/failure.
 - **Militia action**: spend tools to raise temporary local guards during dangerous periods.
 
 ## Rules implemented

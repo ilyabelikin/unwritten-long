@@ -676,6 +676,75 @@ const hasOpenOppositionContractForSummitChain = (world: World, chainId: string):
       contract.meta.linkedDiplomaticSummitChainId === chainId,
   )
 
+const activePeaceDividendPair = (world: World, left: string, right: string) => {
+  const leftPolicy = world.kingdoms[left]?.policy
+  const rightPolicy = world.kingdoms[right]?.policy
+  if (!leftPolicy || !rightPolicy) return undefined
+  if (leftPolicy.peaceDividendPartnerKingdomId !== right) return undefined
+  if (rightPolicy.peaceDividendPartnerKingdomId !== left) return undefined
+  if (leftPolicy.peaceDividendUntilTurn < world.turn || rightPolicy.peaceDividendUntilTurn < world.turn) return undefined
+  return { leftPolicy, rightPolicy }
+}
+
+const reinforcePeaceDividendFromContract = (world: World, contract: Contract): string[] => {
+  if (contract.meta.peaceDividendOpportunity !== true) return []
+  const partner = contract.meta.peaceDividendPartnerKingdomId as string | undefined
+  if (!partner || !world.kingdoms[partner]) return []
+  if (isAtWar(world, contract.issuerKingdomId, partner)) return []
+  const pair = activePeaceDividendPair(world, contract.issuerKingdomId, partner)
+  if (!pair) return []
+
+  const relationBoost = 2 + Math.floor(contract.level / 2)
+  setRelation(
+    world,
+    contract.issuerKingdomId,
+    partner,
+    relationBetween(world, contract.issuerKingdomId, partner) + relationBoost,
+  )
+
+  const intensityBoost = clamp(2 + Math.floor(contract.level / 2), 1, 8)
+  pair.leftPolicy.peaceDividendIntensity = clamp(pair.leftPolicy.peaceDividendIntensity + intensityBoost, 0, 100)
+  pair.rightPolicy.peaceDividendIntensity = clamp(pair.rightPolicy.peaceDividendIntensity + intensityBoost, 0, 100)
+  const extension = 2 + Math.floor(contract.level / 2)
+  pair.leftPolicy.peaceDividendUntilTurn = Math.max(
+    pair.leftPolicy.peaceDividendUntilTurn,
+    world.turn + extension,
+  )
+  pair.rightPolicy.peaceDividendUntilTurn = Math.max(
+    pair.rightPolicy.peaceDividendUntilTurn,
+    world.turn + extension,
+  )
+  return ['Peace-dividend corridor strengthened by successful boom-time commission.']
+}
+
+const strainPeaceDividendFromFailedContract = (world: World, contract: Contract): string[] => {
+  if (contract.meta.peaceDividendOpportunity !== true) return []
+  const partner = contract.meta.peaceDividendPartnerKingdomId as string | undefined
+  if (!partner || !world.kingdoms[partner]) return []
+  const pair = activePeaceDividendPair(world, contract.issuerKingdomId, partner)
+  if (!pair) return []
+
+  const intensityLoss = clamp(3 + Math.floor(contract.level / 2), 2, 9)
+  pair.leftPolicy.peaceDividendIntensity = clamp(pair.leftPolicy.peaceDividendIntensity - intensityLoss, 0, 100)
+  pair.rightPolicy.peaceDividendIntensity = clamp(pair.rightPolicy.peaceDividendIntensity - intensityLoss, 0, 100)
+  setRelation(
+    world,
+    contract.issuerKingdomId,
+    partner,
+    relationBetween(world, contract.issuerKingdomId, partner) - Math.max(1, Math.floor(intensityLoss / 2)),
+  )
+  if (pair.leftPolicy.peaceDividendIntensity <= 2 || pair.rightPolicy.peaceDividendIntensity <= 2) {
+    pair.leftPolicy.peaceDividendIntensity = 0
+    pair.rightPolicy.peaceDividendIntensity = 0
+    pair.leftPolicy.peaceDividendUntilTurn = -1
+    pair.rightPolicy.peaceDividendUntilTurn = -1
+    pair.leftPolicy.peaceDividendPartnerKingdomId = 'none'
+    pair.rightPolicy.peaceDividendPartnerKingdomId = 'none'
+    return ['Peace dividend momentum collapsed after failed boom-time contracts.']
+  }
+  return ['Peace dividend momentum faltered after a failed boom-time contract.']
+}
+
 const createDiplomaticOppositionContract = (
   world: World,
   summitContract: Contract,
@@ -812,6 +881,7 @@ export const simulateContractBoardTurn = (world: World, rng: SeededRng): string[
           }
           messages.push('Peace-opposition mandate failed, straining summit diplomacy.')
         }
+        messages.push(...strainPeaceDividendFromFailedContract(world, contract))
       }
     }
   }
@@ -1251,8 +1321,9 @@ export const progressActiveContractForPlayer = (world: World): string[] => {
     if (remaining <= 0) {
       contract.status = 'completed'
       rewardPlayerForContract(world, contract)
+      const dividendMessages = reinforcePeaceDividendFromContract(world, contract)
       const chainMessages = handleContractChainProgress(world, contract)
-      return [`Contract ${contract.id} was already complete and has now been closed.`, ...chainMessages]
+      return [`Contract ${contract.id} was already complete and has now been closed.`, ...dividendMessages, ...chainMessages]
     }
     const available = Math.floor(player.inventory[good] ?? 0)
     if (available <= 0) return [`Bring ${good} to complete this contract.`]
@@ -1265,8 +1336,10 @@ export const progressActiveContractForPlayer = (world: World): string[] => {
       rewardPlayerForContract(world, contract)
       settlement.meta.foodStress = clamp(settlement.meta.foodStress - 10, 0, 100)
       settlement.meta.prosperity = clamp(settlement.meta.prosperity + 6, 0, 100)
+      const dividendMessages = reinforcePeaceDividendFromContract(world, contract)
       const messages = [
         `Contract ${contract.id} completed by delivering ${contract.requiredAmount} ${good}.`,
+        ...dividendMessages,
         ...handleContractChainProgress(world, contract),
       ]
       world.messages = [...messages, ...world.messages].slice(0, 120)
@@ -1285,8 +1358,10 @@ export const progressActiveContractForPlayer = (world: World): string[] => {
     if (contract.progress >= contract.requiredAmount) {
       contract.status = 'completed'
       rewardPlayerForContract(world, contract)
+      const dividendMessages = reinforcePeaceDividendFromContract(world, contract)
       const messages = [
         `Contract ${contract.id} completed. The roads feel safer.`,
+        ...dividendMessages,
         ...handleContractChainProgress(world, contract),
       ]
       world.messages = [...messages, ...world.messages].slice(0, 120)
@@ -1303,8 +1378,10 @@ export const progressActiveContractForPlayer = (world: World): string[] => {
       contract.status = 'completed'
       rewardPlayerForContract(world, contract)
       settlement.meta.prosperity = clamp(settlement.meta.prosperity + 4, 0, 100)
+      const dividendMessages = reinforcePeaceDividendFromContract(world, contract)
       const messages = [
         `Contract ${contract.id} completed. ${settlement.name} defenses held strong.`,
+        ...dividendMessages,
         ...handleContractChainProgress(world, contract),
       ]
       world.messages = [...messages, ...world.messages].slice(0, 120)
@@ -1322,8 +1399,10 @@ export const progressActiveContractForPlayer = (world: World): string[] => {
       contract.status = 'completed'
       rewardPlayerForContract(world, contract)
       settlement.meta.prosperity = clamp(settlement.meta.prosperity + 5, 0, 100)
+      const dividendMessages = reinforcePeaceDividendFromContract(world, contract)
       const messages = [
         `Contract ${contract.id} completed. Escort caravan reached destination safely.`,
+        ...dividendMessages,
         ...handleContractChainProgress(world, contract),
       ]
       world.messages = [...messages, ...world.messages].slice(0, 120)

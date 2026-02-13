@@ -406,6 +406,117 @@ describe('contracts system', () => {
     expect(foundDefense).toBe(true)
   })
 
+  it('completing peace-opportunity contracts reinforces active peace dividends', () => {
+    const world = generateWorld(9425)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const settlement = world.settlements[settlementId]
+    const issuerKingdomId = settlement.kingdomId
+    const partnerKingdomId = Object.keys(world.kingdoms).find((id) => id !== issuerKingdomId)
+    expect(partnerKingdomId).toBeDefined()
+    if (!partnerKingdomId) return
+
+    const issuerPolicy = world.kingdoms[issuerKingdomId].policy
+    const partnerPolicy = world.kingdoms[partnerKingdomId].policy
+    issuerPolicy.peaceDividendUntilTurn = world.turn + 1
+    partnerPolicy.peaceDividendUntilTurn = world.turn + 1
+    issuerPolicy.peaceDividendPartnerKingdomId = partnerKingdomId
+    partnerPolicy.peaceDividendPartnerKingdomId = issuerKingdomId
+    issuerPolicy.peaceDividendIntensity = 20
+    partnerPolicy.peaceDividendIntensity = 20
+    setRelation(world, issuerKingdomId, partnerKingdomId, -4)
+    const relationBefore = relationBetween(world, issuerKingdomId, partnerKingdomId)
+    const untilBefore = issuerPolicy.peaceDividendUntilTurn
+
+    const contractId = `peace-reinforce-${world.turn}`
+    world.contracts[contractId] = {
+      id: contractId,
+      settlementId,
+      issuerKingdomId,
+      kind: 'deliver_food',
+      level: 2,
+      status: 'available',
+      good: 'grain',
+      requiredAmount: 5,
+      progress: 0,
+      rewardReputation: 8,
+      rewardBountyReduction: 6,
+      rewardGoods: { tools: 1 },
+      expiresTurn: world.turn + 18,
+      meta: {
+        peaceDividendOpportunity: true,
+        peaceDividendPartnerKingdomId: partnerKingdomId,
+      },
+    }
+    player.inventory.grain = 8
+    playerAcceptContract(world, contractId)
+    const result = playerProgressContract(world)
+    expect(result.some((line) => line.includes('Peace-dividend corridor strengthened'))).toBe(true)
+    expect(world.contracts[contractId].status).toBe('completed')
+    expect(relationBetween(world, issuerKingdomId, partnerKingdomId)).toBeGreaterThan(relationBefore)
+    expect(issuerPolicy.peaceDividendIntensity).toBeGreaterThan(20)
+    expect(partnerPolicy.peaceDividendIntensity).toBeGreaterThan(20)
+    expect(issuerPolicy.peaceDividendUntilTurn).toBeGreaterThan(untilBefore)
+    expect(partnerPolicy.peaceDividendUntilTurn).toBeGreaterThan(untilBefore)
+  })
+
+  it('failing active peace-opportunity contracts can collapse weak dividends', () => {
+    const world = generateWorld(9426)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const settlement = world.settlements[settlementId]
+    const issuerKingdomId = settlement.kingdomId
+    const partnerKingdomId = Object.keys(world.kingdoms).find((id) => id !== issuerKingdomId)
+    expect(partnerKingdomId).toBeDefined()
+    if (!partnerKingdomId) return
+
+    const issuerPolicy = world.kingdoms[issuerKingdomId].policy
+    const partnerPolicy = world.kingdoms[partnerKingdomId].policy
+    issuerPolicy.peaceDividendUntilTurn = world.turn + 8
+    partnerPolicy.peaceDividendUntilTurn = world.turn + 8
+    issuerPolicy.peaceDividendPartnerKingdomId = partnerKingdomId
+    partnerPolicy.peaceDividendPartnerKingdomId = issuerKingdomId
+    issuerPolicy.peaceDividendIntensity = 3
+    partnerPolicy.peaceDividendIntensity = 3
+
+    const contractId = `peace-fail-${world.turn}`
+    world.contracts[contractId] = {
+      id: contractId,
+      settlementId,
+      issuerKingdomId,
+      kind: 'escort_caravan',
+      level: 1,
+      status: 'active',
+      good: 'grain',
+      requiredAmount: 8,
+      progress: 0,
+      rewardReputation: 8,
+      rewardBountyReduction: 6,
+      rewardGoods: { tools: 1 },
+      expiresTurn: world.turn,
+      assignedCharacterId: world.playerId,
+      acceptedTurn: world.turn - 2,
+      meta: {
+        peaceDividendOpportunity: true,
+        peaceDividendPartnerKingdomId: partnerKingdomId,
+      },
+    }
+    world.turn += 2
+    const messages = simulateContractBoardTurn(world, new SeededRng(61))
+    expect(messages.some((line) => line.includes('Peace dividend momentum collapsed'))).toBe(true)
+    expect(world.contracts[contractId].status).toBe('expired')
+    expect(issuerPolicy.peaceDividendIntensity).toBe(0)
+    expect(partnerPolicy.peaceDividendIntensity).toBe(0)
+    expect(issuerPolicy.peaceDividendUntilTurn).toBe(-1)
+    expect(partnerPolicy.peaceDividendUntilTurn).toBe(-1)
+    expect(issuerPolicy.peaceDividendPartnerKingdomId).toBe('none')
+    expect(partnerPolicy.peaceDividendPartnerKingdomId).toBe('none')
+  })
+
   it('increases player kingdom favor after contract completion', () => {
     const world = generateWorld(9421)
     const player = world.characters[world.playerId]

@@ -173,6 +173,7 @@ export const Hud = ({
                   Active: {activeContract.kind} (T{activeContract.level}) · {activeContract.progress}/
                   {activeContract.requiredAmount}
                 </p>
+                {activeContract.meta.campaign === true && <p>Royal priority contract</p>}
                 {activeContract.kind === 'escort_caravan' && (
                   <p>
                     Escort status: {activeContract.meta.playerMetCaravan ? 'contact made' : 'find caravan'} ·{' '}
@@ -198,6 +199,7 @@ export const Hud = ({
                             : `Defend settlement from ${contract.requiredAmount} hostile groups`}
                     </p>
                     <p>Tier: {contract.level}</p>
+                    {contract.meta.campaign === true && <p>Royal objective</p>}
                     <p>
                       Reward: +{contract.rewardReputation} rep · {Object.entries(contract.rewardGoods)
                         .map(([good, qty]) => `${qty} ${good}`)

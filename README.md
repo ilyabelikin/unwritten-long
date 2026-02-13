@@ -61,7 +61,7 @@ Then open the printed localhost URL.
 - **End Turn** button: spend remaining AP and advance immediately.
 - **New World** button: regenerate with a fresh seed.
 - **Save / Load** buttons: persist and restore game state from browser local storage.
-- **Overlay selector**: switch map intel between terrain, kingdoms, economy, and danger.
+- **Overlay selector**: switch map intel between terrain, kingdoms, economy, danger, and corridor stability.
 - **Civic actions in settlements**: donate supplies, sponsor diplomatic talks, and request city pardons.
 - **Sponsored treaties** can now open provisional peace corridors that seed peace-dividend effects earlier.
 - **Contract board in settlements**: accept local contracts and report progress for rewards.

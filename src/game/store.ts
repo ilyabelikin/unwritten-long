@@ -16,7 +16,7 @@ import {
 } from '../core/sim/turn'
 import { loadFromLocalStorage, saveToLocalStorage } from './persistence'
 
-export type MapOverlayMode = 'terrain' | 'kingdom' | 'economy' | 'danger'
+export type MapOverlayMode = 'terrain' | 'kingdom' | 'economy' | 'danger' | 'corridor'
 
 interface GameState {
   world: World

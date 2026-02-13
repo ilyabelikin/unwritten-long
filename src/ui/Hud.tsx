@@ -177,6 +177,7 @@ export const Hud = ({
             <option value="kingdom">Kingdoms</option>
             <option value="economy">Economy</option>
             <option value="danger">Danger</option>
+            <option value="corridor">Corridors</option>
           </select>
         </div>
       </section>

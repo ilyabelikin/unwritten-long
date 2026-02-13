@@ -3,6 +3,7 @@ import { axialToPixel, keyFor, neighborsOf, polygonPoints } from '../core/hex'
 import { kingdomPairKey } from '../core/sim/diplomacy'
 import type { Character, Terrain, Tile, World } from '../core/types'
 import type { MapOverlayMode } from '../game/store'
+import { corridorOverlayByTile } from './overlay/corridorOverlay'
 import './MapView.css'
 
 const HEX_SIZE = 18
@@ -147,6 +148,8 @@ export const MapView = ({ world, overlayMode, onTileClick, onCharacterClick }: M
     return scores
   }, [world.settlements])
 
+  const corridorByTile = useMemo(() => corridorOverlayByTile(world), [world])
+
   const tileFill = (tile: Tile): string => {
     const base = terrainColor[tile.terrain]
     if (overlayMode === 'terrain') return base
@@ -163,6 +166,11 @@ export const MapView = ({ world, overlayMode, onTileClick, onCharacterClick }: M
       const danger = dangerByTile[tile.id] ?? 0
       const mix = Math.min(1, danger / 5)
       return blendColor(base, '#cf4a4a', mix)
+    }
+    if (overlayMode === 'corridor') {
+      const corridor = corridorByTile[tile.id]
+      if (!corridor) return base
+      return blendColor(base, corridor.tint, corridor.mix)
     }
     return base
   }

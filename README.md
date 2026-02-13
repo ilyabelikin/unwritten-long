@@ -87,6 +87,7 @@ Then open the printed localhost URL.
 - Some peace-dividend escorts now form explicit cross-border trade corridors with partner kingdoms.
 - Losing a peace-corridor caravan can sharply damage or even collapse a fragile dividend détente.
 - Corridor-active cities apply softer guard/legal pressure (more bounty decay and reduced pardon burden).
+- Active corridors also reduce cross-border caravan tariffs and route risk, improving sustained inter-kingdom trade.
 - **Militia action**: spend tools to raise temporary local guards during dangerous periods.
 
 ## Rules implemented

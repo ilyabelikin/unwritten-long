@@ -54,3 +54,29 @@ export const pardonDiscountMultiplierFromPeaceCorridor = (world: World, kingdomI
   if (corridor.intensity >= 18) return 0.9
   return 1
 }
+
+export const tariffReliefFromPeaceCorridor = (
+  world: World,
+  homeKingdomId?: string,
+  foreignKingdomId?: string,
+): number => {
+  if (!homeKingdomId || !foreignKingdomId || homeKingdomId === foreignKingdomId) return 0
+  const corridor = activePeaceCorridorForKingdom(world, homeKingdomId)
+  if (!corridor || corridor.partnerKingdomId !== foreignKingdomId) return 0
+  if (corridor.intensity >= 34) return 0.08
+  if (corridor.intensity >= 18) return 0.04
+  return 0
+}
+
+export const routeRiskReliefFromPeaceCorridor = (
+  world: World,
+  homeKingdomId?: string,
+  foreignKingdomId?: string,
+): number => {
+  if (!homeKingdomId || !foreignKingdomId || homeKingdomId === foreignKingdomId) return 0
+  const corridor = activePeaceCorridorForKingdom(world, homeKingdomId)
+  if (!corridor || corridor.partnerKingdomId !== foreignKingdomId) return 0
+  if (corridor.intensity >= 34) return 0.32
+  if (corridor.intensity >= 18) return 0.18
+  return 0
+}

@@ -3,6 +3,7 @@ import { generateWorld } from '../worldgen/generateWorld'
 import { SeededRng } from '../random'
 import { simulateEconomyTurn, estimateGoodPrice } from './economy'
 import { keyFor, neighborsOf } from '../hex'
+import { setRelation } from './diplomacy'
 
 describe('economy simulation', () => {
   it('updates settlement dreams and stockpiles over a turn', () => {
@@ -205,6 +206,58 @@ describe('economy simulation', () => {
     expect(sourceSettlementId).toBeDefined()
     expect(trader.location).toBe(world.settlements[sourceSettlementId].tiles[0])
     expect(trader.targetTileId).toBe(home.tiles[0])
+  })
+
+  it('active peace corridors apply tariff relief to launched caravans', () => {
+    const world = generateWorld(2236)
+    const settlements = Object.values(world.settlements)
+    const pair = settlements
+      .flatMap((left, idx) =>
+        settlements
+          .slice(idx + 1)
+          .filter((right) => right.kingdomId !== left.kingdomId)
+          .map((right) => {
+            const a = world.tiles[left.tiles[0]].coord
+            const b = world.tiles[right.tiles[0]].coord
+            const distance = Math.abs(a.q - b.q) + Math.abs(a.r - b.r)
+            return { left, right, distance }
+          }),
+      )
+      .sort((a, b) => a.distance - b.distance)[0]
+    expect(pair).toBeDefined()
+    if (!pair) return
+    const home = pair.left
+    const source = pair.right
+    const homeKingdom = home.kingdomId
+    const sourceKingdom = source.kingdomId
+    const relationKey = [homeKingdom, sourceKingdom].sort().join('|')
+    world.kingdomConflicts[relationKey] = false
+    setRelation(world, homeKingdom, sourceKingdom, 18)
+    world.kingdoms[homeKingdom].policy.peaceDividendPartnerKingdomId = sourceKingdom
+    world.kingdoms[sourceKingdom].policy.peaceDividendPartnerKingdomId = homeKingdom
+    world.kingdoms[homeKingdom].policy.peaceDividendUntilTurn = world.turn + 16
+    world.kingdoms[sourceKingdom].policy.peaceDividendUntilTurn = world.turn + 16
+    world.kingdoms[homeKingdom].policy.peaceDividendIntensity = 28
+    world.kingdoms[sourceKingdom].policy.peaceDividendIntensity = 28
+
+    for (const settlement of settlements) {
+      settlement.treasury = 0
+      settlement.stockpile.grain = 0
+      settlement.needs.grain = 8
+    }
+    home.treasury = 900
+    source.treasury = 800
+    home.stockpile.grain = 0
+    home.needs.grain = 38
+    source.stockpile.grain = 90
+    source.needs.grain = 4
+
+    let sawRelief = false
+    for (let i = 0; i < 20 && !sawRelief; i += 1) {
+      const messages = simulateEconomyTurn(world, new SeededRng(130 + i))
+      sawRelief = messages.some((line) => line.includes('corridor relief'))
+    }
+    expect(sawRelief).toBe(true)
   })
 })
 

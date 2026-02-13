@@ -5,6 +5,7 @@ import { safestPath, shortestPath } from '../pathing'
 import { SeededRng } from '../random'
 import { isAtWar, relationBetween } from './diplomacy'
 import { effectiveTaxRate } from './edicts'
+import { routeRiskReliefFromPeaceCorridor, tariffReliefFromPeaceCorridor } from './peaceCorridor'
 import type { BuildingType, Character, CropStage, Good, Settlement, SettlementTier, World } from '../types'
 import { addGoods, clamp, consumeGoods, createGoodRecord } from '../utils'
 
@@ -563,6 +564,7 @@ const spawnCaravan = (
         buyPrice: number
         sellPrice: number
         tariff: number
+        corridorTariffRelief: number
         path: string[]
       }
     | undefined
@@ -589,18 +591,29 @@ const spawnCaravan = (
         (sourceTradeStance === 'protectionist' ? 0.05 : sourceTradeStance === 'open' ? -0.02 : 0)
       const tariffBase =
         settlement.kingdomId === other.kingdomId ? 0 : relation < 0 ? 0.2 : relation < 25 ? 0.11 : 0.04
-      const tariff = clamp(tariffBase + policyTariffOffset, 0, 0.35)
+      const corridorTariffRelief = tariffReliefFromPeaceCorridor(world, settlement.kingdomId, other.kingdomId)
+      const tariff = clamp(tariffBase + policyTariffOffset - corridorTariffRelief, 0, 0.35)
       const sourceCenter = other.tiles[0]
       const homeCenter = settlement.tiles[0]
       const tradePath = safestPath(world, sourceCenter, homeCenter, dangerByTile)
       if (tradePath.length < 2) continue
       const routeDanger = tradePath.reduce((total, tileId) => total + (dangerByTile[tileId] ?? 0), 0)
-      const riskCost = routeDanger * 0.9
+      const routeRiskRelief = routeRiskReliefFromPeaceCorridor(world, settlement.kingdomId, other.kingdomId)
+      const riskCost = routeDanger * 0.9 * (1 - routeRiskRelief)
       const peaceDividendMargin = peaceDividendIntensity * 0.18
       const margin = (sellPrice - buyPrice * (1 + tariff)) * qty - riskCost + peaceDividendMargin
       if (margin <= 6) continue
       if (!bestDeal || margin > (bestDeal.sellPrice - bestDeal.buyPrice * (1 + bestDeal.tariff)) * bestDeal.qty) {
-        bestDeal = { source: other, good, qty, buyPrice, sellPrice, tariff, path: tradePath }
+        bestDeal = {
+          source: other,
+          good,
+          qty,
+          buyPrice,
+          sellPrice,
+          tariff,
+          corridorTariffRelief,
+          path: tradePath,
+        }
       }
     }
   }
@@ -659,8 +672,11 @@ const spawnCaravan = (
   }
   world.characters[id] = trader
   const tariffPercent = Math.round(bestDeal.tariff * 100)
+  const corridorReliefPercent = Math.round(bestDeal.corridorTariffRelief * 100)
   messages.push(
-    `${settlement.name} launched caravan from ${bestDeal.source.name} with ${bestDeal.good}${tariffPercent > 0 ? ` (tariff ${tariffPercent}%)` : ''}.`,
+    `${settlement.name} launched caravan from ${bestDeal.source.name} with ${bestDeal.good}${
+      tariffPercent > 0 ? ` (tariff ${tariffPercent}%)` : ''
+    }${corridorReliefPercent > 0 ? ` (corridor relief ${corridorReliefPercent}%)` : ''}.`,
   )
 }
 

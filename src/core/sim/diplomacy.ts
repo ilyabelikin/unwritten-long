@@ -133,6 +133,50 @@ const capitalSettlement = (world: World, kingdomId: string) => {
     .sort((a, b) => b.populationIds.length - a.populationIds.length)[0]
 }
 
+const bilateralPeaceDividendIntensity = (world: World, left: string, right: string): number => {
+  const leftPolicy = world.kingdoms[left]?.policy
+  const rightPolicy = world.kingdoms[right]?.policy
+  if (!leftPolicy || !rightPolicy) return 0
+  if (leftPolicy.peaceDividendPartnerKingdomId !== right) return 0
+  if (rightPolicy.peaceDividendPartnerKingdomId !== left) return 0
+  if (leftPolicy.peaceDividendUntilTurn < world.turn || rightPolicy.peaceDividendUntilTurn < world.turn) return 0
+  return clamp(Math.min(leftPolicy.peaceDividendIntensity, rightPolicy.peaceDividendIntensity), 0, 100)
+}
+
+const applyPeaceDividendEffects = (world: World, messages: string[]): void => {
+  const pairKeys = Object.keys(world.kingdomRelations)
+  for (const pair of pairKeys) {
+    const [left, right] = pair.split('|')
+    const intensity = bilateralPeaceDividendIntensity(world, left, right)
+    if (intensity <= 0) continue
+
+    const relationBoost = Math.max(1, Math.round(intensity / 14))
+    setRelation(world, left, right, relationBetween(world, left, right) + relationBoost)
+
+    const treasuryBoost = Math.max(3, Math.round(intensity / 5))
+    const leftCapital = capitalSettlement(world, left)
+    const rightCapital = capitalSettlement(world, right)
+    if (leftCapital) leftCapital.treasury += treasuryBoost
+    if (rightCapital) rightCapital.treasury += treasuryBoost
+
+    const stabilization = clamp(0.8 + intensity * 0.025, 0.8, 3.4)
+    const settlements = Object.values(world.settlements).filter(
+      (settlement) => settlement.kingdomId === left || settlement.kingdomId === right,
+    )
+    for (const settlement of settlements) {
+      settlement.meta.siegePressure = clamp(settlement.meta.siegePressure - stabilization * 0.9, 0, 100)
+      settlement.meta.foodStress = clamp(settlement.meta.foodStress - stabilization, 0, 100)
+      settlement.meta.prosperity = clamp(settlement.meta.prosperity + stabilization * 0.4, 0, 100)
+    }
+
+    if (world.turn % 24 === 0) {
+      messages.push(
+        `${world.kingdoms[left].name} and ${world.kingdoms[right].name} enjoyed a post-summit trade boom.`,
+      )
+    }
+  }
+}
+
 const applyDiplomaticIncident = (world: World, rng: SeededRng, messages: string[]): void => {
   if (world.turn % 18 !== 0) return
   const pairs = Object.keys(world.kingdomRelations)
@@ -190,7 +234,8 @@ export const simulateDiplomacyTurn = (world: World, rng: SeededRng): string[] =>
       const a = kingdomIds[i]
       const b = kingdomIds[j]
       const current = relationBetween(world, a, b)
-      const drift = rng.int(-8, 7)
+      const peaceDividend = bilateralPeaceDividendIntensity(world, a, b)
+      const drift = peaceDividend > 0 ? rng.int(-3, 8) : rng.int(-8, 7)
       const next = clamp(current + drift, -100, 100)
       setRelation(world, a, b, next)
 
@@ -209,6 +254,7 @@ export const simulateDiplomacyTurn = (world: World, rng: SeededRng): string[] =>
       }
     }
   }
+  applyPeaceDividendEffects(world, messages)
   applyDiplomaticIncident(world, rng, messages)
   adjustKingdomPolicies(world, rng, messages)
   return messages

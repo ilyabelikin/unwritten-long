@@ -83,5 +83,64 @@ describe('diplomacy simulation', () => {
     expect(messages.some((line) => line.includes('trade charter'))).toBe(true)
     expect(treasuryAfter).toBeGreaterThan(treasuryBefore)
   })
+
+  it('active peace dividends improve bilateral relations and treasury flow', () => {
+    const world = generateWorld(9906)
+    const [left, right] = Object.keys(world.kingdoms)
+    const leftPolicy = world.kingdoms[left].policy
+    const rightPolicy = world.kingdoms[right].policy
+    world.turn = 12
+    setRelation(world, left, right, -12)
+    leftPolicy.peaceDividendUntilTurn = world.turn + 18
+    rightPolicy.peaceDividendUntilTurn = world.turn + 18
+    leftPolicy.peaceDividendPartnerKingdomId = right
+    rightPolicy.peaceDividendPartnerKingdomId = left
+    leftPolicy.peaceDividendIntensity = 60
+    rightPolicy.peaceDividendIntensity = 60
+    const leftCapitalId = world.kingdoms[left].capitalSettlementId
+    const rightCapitalId = world.kingdoms[right].capitalSettlementId
+    expect(leftCapitalId).toBeDefined()
+    expect(rightCapitalId).toBeDefined()
+    if (!leftCapitalId || !rightCapitalId) return
+    const leftCapital = world.settlements[leftCapitalId]
+    const rightCapital = world.settlements[rightCapitalId]
+    const treasuryBefore = leftCapital.treasury + rightCapital.treasury
+    const relationBefore = relationBetween(world, left, right)
+
+    simulateDiplomacyTurn(world, new SeededRng(44))
+    const treasuryAfter = leftCapital.treasury + rightCapital.treasury
+    const relationAfter = relationBetween(world, left, right)
+    expect(relationAfter).toBeGreaterThan(relationBefore)
+    expect(treasuryAfter).toBeGreaterThan(treasuryBefore)
+  })
+
+  it('peace dividends reduce siege pressure and food stress trends', () => {
+    const world = generateWorld(9907)
+    const [left, right] = Object.keys(world.kingdoms)
+    const leftSettlement = Object.values(world.settlements).find((settlement) => settlement.kingdomId === left)
+    const rightSettlement = Object.values(world.settlements).find((settlement) => settlement.kingdomId === right)
+    expect(leftSettlement).toBeDefined()
+    expect(rightSettlement).toBeDefined()
+    if (!leftSettlement || !rightSettlement) return
+    world.turn = 12
+    world.kingdoms[left].policy.peaceDividendUntilTurn = world.turn + 10
+    world.kingdoms[right].policy.peaceDividendUntilTurn = world.turn + 10
+    world.kingdoms[left].policy.peaceDividendPartnerKingdomId = right
+    world.kingdoms[right].policy.peaceDividendPartnerKingdomId = left
+    world.kingdoms[left].policy.peaceDividendIntensity = 35
+    world.kingdoms[right].policy.peaceDividendIntensity = 35
+    leftSettlement.meta.siegePressure = 25
+    rightSettlement.meta.siegePressure = 24
+    leftSettlement.meta.foodStress = 30
+    rightSettlement.meta.foodStress = 28
+    const siegeBefore = leftSettlement.meta.siegePressure + rightSettlement.meta.siegePressure
+    const stressBefore = leftSettlement.meta.foodStress + rightSettlement.meta.foodStress
+
+    simulateDiplomacyTurn(world, new SeededRng(55))
+    const siegeAfter = leftSettlement.meta.siegePressure + rightSettlement.meta.siegePressure
+    const stressAfter = leftSettlement.meta.foodStress + rightSettlement.meta.foodStress
+    expect(siegeAfter).toBeLessThan(siegeBefore)
+    expect(stressAfter).toBeLessThan(stressBefore)
+  })
 })
 

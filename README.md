@@ -32,6 +32,7 @@ A browser-based turn-based hex adventure simulation with:
 - Cross-kingdom diplomatic summit chains can appear for tense/war-torn pairs and stage ceasefire diplomacy.
 - Peace opposition incidents can emerge around diplomatic summits (war hawk sabotage vs reformer counterpressure mandates).
 - Successful diplomatic summit chains now grant temporary peace dividends that stimulate local economies.
+- While active, peace dividends can trigger periodic trade-boom pulses that improve relations, frontier stability, and food pressure.
 
 ## Tech
 

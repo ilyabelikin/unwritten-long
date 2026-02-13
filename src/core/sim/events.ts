@@ -359,8 +359,20 @@ const hasOpenRivalryContractForKingdom = (world: World, kingdomId: string): bool
       contract.meta.rivalryIncident === true,
   )
 
+const hasOpenTruceContractForKingdom = (world: World, kingdomId: string): boolean =>
+  Object.values(world.contracts).some(
+    (contract) =>
+      contract.issuerKingdomId === kingdomId &&
+      contract.status !== 'completed' &&
+      contract.status !== 'expired' &&
+      contract.meta.truceIncident === true,
+  )
+
 const newRivalryContractId = (world: World, rng: SeededRng): string =>
   `contract-rivalry-${world.turn}-${rng.int(100, 999)}-${Object.keys(world.contracts).length + 1}`
+
+const newTruceContractId = (world: World, rng: SeededRng): string =>
+  `contract-truce-${world.turn}-${rng.int(100, 999)}-${Object.keys(world.contracts).length + 1}`
 
 const createFactionRivalryContract = (
   world: World,
@@ -444,6 +456,76 @@ const createFactionRivalryContract = (
   return contract
 }
 
+const createFactionTruceContract = (
+  world: World,
+  kingdomId: string,
+  primaryFaction: CourtFaction,
+  partnerFaction: CourtFaction,
+  rng: SeededRng,
+): Contract | undefined => {
+  const issuer = capitalSettlementForKingdom(world, kingdomId)
+  if (!issuer || openContractCountForSettlement(world, issuer.id) >= 4) return undefined
+
+  const level = clamp(
+    2 +
+      Math.floor((world.campaignProgress[kingdomId] ?? 0) / 5) +
+      (world.kingdoms[kingdomId].policy.factionTension >= 72 ? 1 : 0),
+    1,
+    4,
+  )
+  const kind: Contract['kind'] = rng.chance(0.5) ? 'escort_caravan' : 'deliver_food'
+  const minStanding = clamp(6 + level, 6, 20)
+  const trucePair = [primaryFaction, partnerFaction].sort().join('|')
+
+  const contract: Contract = {
+    id: newTruceContractId(world, rng),
+    settlementId: issuer.id,
+    issuerKingdomId: kingdomId,
+    kind,
+    level,
+    status: 'available',
+    good: kind === 'deliver_food' ? 'grain' : 'tools',
+    requiredAmount: kind === 'deliver_food' ? clamp(7 + level * 2, 6, 20) : clamp(9 + level * 2, 8, 20),
+    progress: 0,
+    rewardReputation: 8 + level * 2,
+    rewardBountyReduction: 6 + level,
+    rewardGoods: {
+      tools: 1 + Math.floor(level / 2),
+      grain: 2,
+      vegetables: 1,
+    },
+    expiresTurn: world.turn + (26 - level),
+    meta: {
+      truceIncident: true,
+      trucePair,
+      courtFaction: primaryFaction,
+      rivalFaction: partnerFaction,
+      courtDirective: `${factionLabel(primaryFaction)}-${factionLabel(partnerFaction)} Truce Summit`,
+      minCourtFavor: minStanding,
+      minCourtFavorByFaction: {
+        [primaryFaction]: minStanding,
+        [partnerFaction]: minStanding,
+      },
+      minReputation: clamp(8 + level * 2, 8, 60),
+    },
+  }
+
+  if (kind === 'escort_caravan') {
+    const destination = Object.values(world.settlements)
+      .filter((settlement) => settlement.id !== issuer.id && settlement.kingdomId === kingdomId)
+      .sort((a, b) => b.populationIds.length - a.populationIds.length)[0]
+    if (!destination) {
+      contract.kind = 'deliver_food'
+      contract.good = 'fish'
+      contract.requiredAmount = clamp(8 + level * 2, 6, 20)
+    } else {
+      contract.meta.destinationSettlementId = destination.id
+    }
+  }
+
+  return contract
+}
+
 export const simulateCourtPolitics = (world: World, rng: SeededRng): string[] => {
   const messages: string[] = []
   const kingdomIds = Object.keys(world.kingdoms)
@@ -456,6 +538,15 @@ export const simulateCourtPolitics = (world: World, rng: SeededRng): string[] =>
       policy.activeEdict = 'none'
       policy.edictExpiresTurn = -1
     }
+    if (
+      policy.factionTrucePair !== 'none' &&
+      policy.factionTruceUntilTurn >= 0 &&
+      world.turn > policy.factionTruceUntilTurn
+    ) {
+      messages.push(`${world.kingdoms[kingdomId].name}'s faction truce summit ended.`)
+      policy.factionTrucePair = 'none'
+      policy.factionTruceUntilTurn = -1
+    }
   }
 
   if (world.turn % 9 !== 0) return messages
@@ -466,6 +557,7 @@ export const simulateCourtPolitics = (world: World, rng: SeededRng): string[] =>
     const prosperity = averageProsperityForKingdom(world, kingdomId)
     const avgFoodStress = averageFoodStressForKingdom(world, kingdomId)
     const wars = warCountForKingdom(world, kingdomId)
+    const truceActive = policy.factionTrucePair !== 'none' && policy.factionTruceUntilTurn >= world.turn
 
     policy.courtStability = clamp(
       Math.round(policy.courtStability + (prosperity >= 58 ? 2 : -2) - wars * 2 + (policy.tradeStance === 'open' ? 1 : 0)),
@@ -495,6 +587,10 @@ export const simulateCourtPolitics = (world: World, rng: SeededRng): string[] =>
       }
     } else {
       policy.factionTension = clamp(policy.factionTension - 3, 0, 100)
+    }
+    if (truceActive) {
+      policy.factionTension = clamp(policy.factionTension - 6, 0, 100)
+      policy.courtStability = clamp(policy.courtStability + 2, 0, 100)
     }
 
     if (policy.courtStability <= 30 && policy.nobleInfluence >= 58 && rng.chance(0.55)) {
@@ -564,7 +660,7 @@ export const simulateCourtPolitics = (world: World, rng: SeededRng): string[] =>
       messages.push(`${kingdom.name} announced a grand trade fair edict from its royal court.`)
     }
 
-    if (!hasOpenRivalryContractForKingdom(world, kingdomId) && policy.factionTension >= 46) {
+    if (!truceActive && !hasOpenRivalryContractForKingdom(world, kingdomId) && policy.factionTension >= 46) {
       const rivals = allCourtFactions.filter((candidate) => candidate !== policy.courtFaction)
       const rivalFaction = rivals.sort(
         (left, right) => scores[right] - scores[left],
@@ -578,6 +674,26 @@ export const simulateCourtPolitics = (world: World, rng: SeededRng): string[] =>
             `${kingdom.name}'s ${factionLabel(policy.courtFaction)} challenged the ${factionLabel(rivalFaction)} with a court mandate.`,
           )
           policy.factionTension = clamp(policy.factionTension - 8, 0, 100)
+        }
+      }
+    }
+
+    if (!truceActive && !hasOpenTruceContractForKingdom(world, kingdomId) && policy.factionTension >= 64) {
+      const contenders = allCourtFactions
+        .filter((candidate) => candidate !== policy.courtFaction)
+        .sort((left, right) => scores[right] - scores[left])
+      const summitPartner = contenders[0]
+      const truceChance = clamp(0.22 + (policy.factionTension - 64) * 0.012, 0.22, 0.7)
+      if (summitPartner && rng.chance(truceChance)) {
+        const contract = createFactionTruceContract(world, kingdomId, policy.courtFaction, summitPartner, rng)
+        if (contract) {
+          world.contracts[contract.id] = contract
+          policy.factionTrucePair = [policy.courtFaction, summitPartner].sort().join('|')
+          policy.factionTruceUntilTurn = world.turn + 10
+          policy.factionTension = clamp(policy.factionTension - 14, 0, 100)
+          messages.push(
+            `${kingdom.name} hosted a truce summit between ${factionLabel(policy.courtFaction)} and ${factionLabel(summitPartner)}.`,
+          )
         }
       }
     }

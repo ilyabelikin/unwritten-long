@@ -671,5 +671,52 @@ describe('contracts system', () => {
     expect(accepted[0]).toContain('accepted')
     expect(world.contracts[contractId].status).toBe('active')
   })
+
+  it('gates truce contracts by standing in both involved factions', () => {
+    const world = generateWorld(9432)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const settlement = world.settlements[settlementId]
+    const contractId = `truce-gate-${world.turn}`
+    world.contracts[contractId] = {
+      id: contractId,
+      settlementId,
+      issuerKingdomId: settlement.kingdomId,
+      kind: 'deliver_food',
+      level: 3,
+      status: 'available',
+      good: 'grain',
+      requiredAmount: 8,
+      progress: 0,
+      rewardReputation: 11,
+      rewardBountyReduction: 8,
+      rewardGoods: { tools: 2 },
+      expiresTurn: world.turn + 20,
+      meta: {
+        truceIncident: true,
+        trucePair: 'merchant_bloc|reformers',
+        courtFaction: 'merchant_bloc',
+        rivalFaction: 'reformers',
+        courtDirective: 'Merchant Bloc-Reformers Truce Summit',
+        minCourtFavorByFaction: {
+          merchant_bloc: 10,
+          reformers: 10,
+        },
+      },
+    }
+
+    world.playerCourtFavor.merchant_bloc = 12
+    world.playerCourtFavor.reformers = 6
+    const denied = playerAcceptContract(world, contractId)
+    expect(denied[0]).toContain('standing 10')
+    expect(world.contracts[contractId].status).toBe('available')
+
+    world.playerCourtFavor.reformers = 11
+    const accepted = playerAcceptContract(world, contractId)
+    expect(accepted[0]).toContain('accepted')
+    expect(world.contracts[contractId].status).toBe('active')
+  })
 })
 

@@ -242,6 +242,8 @@ const assignKingdoms = (
           | 'war_hawks'
           | 'reformers',
         factionTension: [34, 29, 52][index],
+        factionTrucePair: 'none',
+        factionTruceUntilTurn: -1,
         activeEdict: 'none',
         edictExpiresTurn: -1,
       },

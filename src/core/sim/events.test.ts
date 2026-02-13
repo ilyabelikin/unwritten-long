@@ -201,5 +201,43 @@ describe('world events under conflict', () => {
 
     expect(spawned).toBe(true)
   })
+
+  it('high tension can trigger faction truce summits with hybrid contracts', () => {
+    const base = generateWorld(9319)
+    const kingdomId = Object.keys(base.kingdoms)[0]
+    let summitSpawned = false
+
+    for (let seed = 1; seed <= 40 && !summitSpawned; seed += 1) {
+      const world = structuredClone(base)
+      world.contracts = {}
+      const policy = world.kingdoms[kingdomId].policy
+      policy.courtFaction = 'merchant_bloc'
+      policy.factionTension = 95
+      policy.factionTrucePair = 'none'
+      policy.factionTruceUntilTurn = -1
+      policy.activeEdict = 'none'
+      for (const settlement of Object.values(world.settlements)) {
+        if (settlement.kingdomId === kingdomId) {
+          settlement.meta.prosperity = 52
+          settlement.meta.foodStress = 18
+        }
+      }
+      world.turn = 9
+      const messages = simulateCourtPolitics(world, new SeededRng(seed))
+      const truceContract = Object.values(world.contracts).find(
+        (contract) => contract.issuerKingdomId === kingdomId && contract.meta.truceIncident === true,
+      )
+      if (truceContract) {
+        summitSpawned = true
+        expect(messages.some((line) => line.includes('truce summit'))).toBe(true)
+        expect(typeof policy.factionTrucePair).toBe('string')
+        expect(policy.factionTrucePair).not.toBe('none')
+        expect(policy.factionTruceUntilTurn).toBeGreaterThan(world.turn)
+        expect(truceContract.meta.minCourtFavorByFaction).toBeDefined()
+      }
+    }
+
+    expect(summitSpawned).toBe(true)
+  })
 })
 

@@ -58,6 +58,24 @@ const showContractFaction = (value: unknown): string => {
   return 'Unaligned'
 }
 
+const showCourtStandingRequirements = (
+  value: unknown,
+  standing: World['playerCourtFavor'],
+): string | undefined => {
+  if (!value || typeof value !== 'object') return undefined
+  const entries = Object.entries(value as Record<string, unknown>)
+    .map(([key, raw]) => {
+      if (key !== 'merchant_bloc' && key !== 'war_hawks' && key !== 'reformers') return undefined
+      const required = Number(raw)
+      if (!Number.isFinite(required) || required <= 0) return undefined
+      const have = Number(standing[key] ?? 0)
+      return `${courtFactionLabel(key)} ${required} (${have})`
+    })
+    .filter((entry): entry is string => Boolean(entry))
+  if (entries.length === 0) return undefined
+  return entries.join(' · ')
+}
+
 export const Hud = ({
   world,
   actionFeed,
@@ -226,6 +244,7 @@ export const Hud = ({
                 {typeof activeContract.meta.rivalFaction === 'string' && (
                   <p>Rival target: {showContractFaction(activeContract.meta.rivalFaction)}</p>
                 )}
+                {activeContract.meta.truceIncident === true && <p>Truce summit objective</p>}
                 {activeContract.meta.courtPatronage === true && (
                   <p>Patronage tier: {String(activeContract.meta.courtPatronTitle ?? 'Court Patronage')}</p>
                 )}
@@ -253,6 +272,10 @@ export const Hud = ({
                     const minReputation = Number(contract.meta.minReputation ?? 0)
                     const reputationLocked = minReputation > 0 && player.reputation < minReputation
                     const minCourtFavor = Number(contract.meta.minCourtFavor ?? 0)
+                    const splitCourtRequirements = showCourtStandingRequirements(
+                      contract.meta.minCourtFavorByFaction,
+                      world.playerCourtFavor,
+                    )
                     const factionKey =
                       contract.meta.courtFaction === 'merchant_bloc' ||
                       contract.meta.courtFaction === 'war_hawks' ||
@@ -260,7 +283,17 @@ export const Hud = ({
                         ? contract.meta.courtFaction
                         : undefined
                     const courtStanding = factionKey ? Number(world.playerCourtFavor[factionKey] ?? 0) : 0
-                    const courtLocked = minCourtFavor > 0 && courtStanding < minCourtFavor
+                    const splitCourtLocked = splitCourtRequirements
+                      ? Object.entries(contract.meta.minCourtFavorByFaction as Record<string, unknown>).some(
+                          ([key, raw]) => {
+                            if (key !== 'merchant_bloc' && key !== 'war_hawks' && key !== 'reformers') return false
+                            const needed = Number(raw)
+                            if (!Number.isFinite(needed) || needed <= 0) return false
+                            return Number(world.playerCourtFavor[key] ?? 0) < needed
+                          },
+                        )
+                      : false
+                    const courtLocked = (minCourtFavor > 0 && courtStanding < minCourtFavor) || splitCourtLocked
                     return (
                       <div key={contract.id} className="contract-card">
                         <p>
@@ -289,6 +322,7 @@ export const Hud = ({
                         {typeof contract.meta.rivalFaction === 'string' && (
                           <p>Rival target: {showContractFaction(contract.meta.rivalFaction)}</p>
                         )}
+                        {contract.meta.truceIncident === true && <p>Truce summit objective</p>}
                         {contract.meta.courtPatronage === true && (
                           <p>Patronage: {String(contract.meta.courtPatronTitle ?? 'Court Patronage')}</p>
                         )}
@@ -297,6 +331,7 @@ export const Hud = ({
                             Requires faction standing: {minCourtFavor} ({courtStanding})
                           </p>
                         )}
+                        {splitCourtRequirements && <p>Requires joint standing: {splitCourtRequirements}</p>}
                         {minReputation > 0 && (
                           <p>
                             Requires rank: {campaignRankTitleForReputation(minReputation)} ({minReputation} rep)
@@ -476,6 +511,12 @@ export const Hud = ({
               <span>Noble influence: {kingdom.policy.nobleInfluence}</span>
               <span>Court faction: {courtFactionLabel(kingdom.policy.courtFaction)}</span>
               <span>Faction tension: {kingdom.policy.factionTension}</span>
+              <span>
+                Truce:{' '}
+                {kingdom.policy.factionTrucePair !== 'none' && kingdom.policy.factionTruceUntilTurn >= world.turn
+                  ? `${kingdom.policy.factionTrucePair} until ${kingdom.policy.factionTruceUntilTurn}`
+                  : 'none'}
+              </span>
               <span>
                 Edict: {edictLabel(kingdom.policy.activeEdict)}
                 {kingdom.policy.activeEdict !== 'none' && kingdom.policy.edictExpiresTurn >= world.turn

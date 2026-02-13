@@ -52,6 +52,8 @@ const ensureKingdomPoliciesAndConflicts = (world: World): void => {
         nobleInfluence: 45,
         courtFaction: 'merchant_bloc',
         factionTension: 35,
+        factionTrucePair: 'none',
+        factionTruceUntilTurn: -1,
         activeEdict: 'none',
         edictExpiresTurn: -1,
       }
@@ -88,6 +90,12 @@ const ensureKingdomPoliciesAndConflicts = (world: World): void => {
     kingdom.policy.factionTension = Number.isFinite(kingdom.policy.factionTension)
       ? kingdom.policy.factionTension
       : 35
+    kingdom.policy.factionTrucePair = typeof kingdom.policy.factionTrucePair === 'string'
+      ? kingdom.policy.factionTrucePair
+      : 'none'
+    kingdom.policy.factionTruceUntilTurn = Number.isFinite(kingdom.policy.factionTruceUntilTurn)
+      ? kingdom.policy.factionTruceUntilTurn
+      : -1
     kingdom.policy.activeEdict = kingdom.policy.activeEdict ?? 'none'
     kingdom.policy.edictExpiresTurn = Number.isFinite(kingdom.policy.edictExpiresTurn)
       ? kingdom.policy.edictExpiresTurn

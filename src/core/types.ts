@@ -146,6 +146,8 @@ export interface Kingdom {
     nobleInfluence: number
     courtFaction: CourtFaction
     factionTension: number
+    factionTrucePair: string
+    factionTruceUntilTurn: number
     activeEdict: 'none' | 'martial_law' | 'tax_relief' | 'trade_fair'
     edictExpiresTurn: number
   }

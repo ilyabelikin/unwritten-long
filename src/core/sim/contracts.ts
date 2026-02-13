@@ -45,6 +45,15 @@ const addFavorForKingdom = (world: World, kingdomId: string, amount: number): vo
 const parseCourtFaction = (value: unknown): CourtFaction | undefined =>
   value === 'merchant_bloc' || value === 'war_hawks' || value === 'reformers' ? value : undefined
 
+const parseCourtFactionPair = (value: unknown): [CourtFaction, CourtFaction] | undefined => {
+  if (typeof value !== 'string') return undefined
+  const [left, right] = value.split('|')
+  const a = parseCourtFaction(left)
+  const b = parseCourtFaction(right)
+  if (!a || !b || a === b) return undefined
+  return [a, b]
+}
+
 const courtFavorForFaction = (world: World, faction: CourtFaction): number =>
   Number(world.playerCourtFavor[faction] ?? 0)
 
@@ -565,9 +574,19 @@ export const simulateContractBoardTurn = (world: World, rng: SeededRng): string[
         if (contract.assignedCharacterId === world.playerId) {
           addFavorForKingdom(world, contract.issuerKingdomId, -2)
           const faction = parseCourtFaction(contract.meta.courtFaction)
-          if (faction) addCourtFavor(world, faction, -1)
-          const rivalFaction = parseCourtFaction(contract.meta.rivalFaction)
-          if (rivalFaction && rivalFaction !== faction) addCourtFavor(world, rivalFaction, 1)
+          if (contract.meta.truceIncident === true) {
+            const pair = parseCourtFactionPair(contract.meta.trucePair)
+            if (pair) {
+              addCourtFavor(world, pair[0], -1)
+              addCourtFavor(world, pair[1], -1)
+            } else if (faction) {
+              addCourtFavor(world, faction, -1)
+            }
+          } else {
+            if (faction) addCourtFavor(world, faction, -1)
+            const rivalFaction = parseCourtFaction(contract.meta.rivalFaction)
+            if (rivalFaction && rivalFaction !== faction) addCourtFavor(world, rivalFaction, 1)
+          }
         }
         messages.push(`Contract ${contract.id} expired before completion.`)
         if (chainId) {
@@ -620,17 +639,31 @@ const rewardPlayerForContract = (world: World, contract: Contract): void => {
   const favorGain = (contract.meta.campaign ? 2 : 1) + Math.floor(contract.level / 2) + (contract.meta.exclusive ? 1 : 0)
   addFavorForKingdom(world, contract.issuerKingdomId, favorGain)
   const faction = parseCourtFaction(contract.meta.courtFaction)
-  if (faction) {
-    const courtGain =
+  if (contract.meta.truceIncident === true) {
+    const pair = parseCourtFactionPair(contract.meta.trucePair)
+    const truceGain =
       1 +
       Math.floor(contract.level / 2) +
-      (contract.meta.courtPatronage ? 1 : 0) +
-      (contract.meta.campaign ? 1 : 0)
-    addCourtFavor(world, faction, courtGain)
-  }
-  const rivalFaction = parseCourtFaction(contract.meta.rivalFaction)
-  if (rivalFaction && rivalFaction !== faction) {
-    addCourtFavor(world, rivalFaction, -1)
+      (contract.meta.courtPatronage ? 1 : 0)
+    if (pair) {
+      addCourtFavor(world, pair[0], truceGain)
+      addCourtFavor(world, pair[1], truceGain)
+    } else if (faction) {
+      addCourtFavor(world, faction, truceGain)
+    }
+  } else {
+    if (faction) {
+      const courtGain =
+        1 +
+        Math.floor(contract.level / 2) +
+        (contract.meta.courtPatronage ? 1 : 0) +
+        (contract.meta.campaign ? 1 : 0)
+      addCourtFavor(world, faction, courtGain)
+    }
+    const rivalFaction = parseCourtFaction(contract.meta.rivalFaction)
+    if (rivalFaction && rivalFaction !== faction) {
+      addCourtFavor(world, rivalFaction, -1)
+    }
   }
   for (const [good, qty] of Object.entries(contract.rewardGoods) as [Good, number][]) {
     if (!qty || qty <= 0) continue
@@ -749,6 +782,21 @@ export const acceptContractForPlayer = (world: World, contractId: string): strin
     return [
       `This contract requires reputation ${minReputation} (${neededTitle}). Your reputation is ${player.reputation}.`,
     ]
+  }
+  if (
+    contract.meta.minCourtFavorByFaction &&
+    typeof contract.meta.minCourtFavorByFaction === 'object'
+  ) {
+    const requirements = contract.meta.minCourtFavorByFaction as Record<string, unknown>
+    for (const [rawFaction, rawMinimum] of Object.entries(requirements)) {
+      const faction = parseCourtFaction(rawFaction)
+      const minimum = Number(rawMinimum)
+      if (!faction || !Number.isFinite(minimum) || minimum <= 0) continue
+      const standing = courtFavorForFaction(world, faction)
+      if (standing < minimum) {
+        return [`This contract requires ${COURT_DIRECTIVE_BY_FACTION[faction]} standing ${minimum}. Current: ${standing}.`]
+      }
+    }
   }
   const minCourtFavor = Number(contract.meta.minCourtFavor ?? 0)
   if (minCourtFavor > 0) {

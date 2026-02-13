@@ -752,7 +752,7 @@ const reinforcePeaceDividendFromContract = (world: World, contract: Contract): s
   ]
 }
 
-const strainPeaceDividendFromFailedContract = (world: World, contract: Contract): string[] => {
+export const strainPeaceDividendFromFailedContract = (world: World, contract: Contract): string[] => {
   if (contract.meta.peaceDividendOpportunity !== true) return []
   const partner = contract.meta.peaceDividendPartnerKingdomId as string | undefined
   if (!partner || !world.kingdoms[partner]) return []

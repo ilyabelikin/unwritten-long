@@ -11,7 +11,7 @@ import {
   playerRob,
   playerSponsorTreaty,
 } from './turn'
-import { setRelation, setWarState } from './diplomacy'
+import { relationBetween, setRelation, setWarState } from './diplomacy'
 import { parseKey } from '../hex'
 import { cityGuardSpawnTiles } from './combat'
 
@@ -454,6 +454,65 @@ describe('turn simulation', () => {
     expect(result[0]).toContain('coordinated')
     expect(world.contracts[contractId].meta.playerMetCaravan).toBe(true)
     expect(player.ap).toBeLessThan(playerApBefore)
+  })
+
+  it('losing a peace-corridor escort can collapse fragile peace dividends', () => {
+    const world = generateWorld(9103)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const settlement = world.settlements[settlementId]
+    const issuerKingdomId = settlement.kingdomId
+    const partnerKingdomId = Object.keys(world.kingdoms).find((id) => id !== issuerKingdomId)
+    expect(partnerKingdomId).toBeDefined()
+    if (!partnerKingdomId) return
+
+    const issuerPolicy = world.kingdoms[issuerKingdomId].policy
+    const partnerPolicy = world.kingdoms[partnerKingdomId].policy
+    issuerPolicy.peaceDividendUntilTurn = world.turn + 10
+    partnerPolicy.peaceDividendUntilTurn = world.turn + 10
+    issuerPolicy.peaceDividendPartnerKingdomId = partnerKingdomId
+    partnerPolicy.peaceDividendPartnerKingdomId = issuerKingdomId
+    issuerPolicy.peaceDividendIntensity = 4
+    partnerPolicy.peaceDividendIntensity = 4
+    setRelation(world, issuerKingdomId, partnerKingdomId, 10)
+    const relationBefore = relationBetween(world, issuerKingdomId, partnerKingdomId)
+
+    const contractId = `escort-lost-${world.turn}`
+    world.contracts[contractId] = {
+      id: contractId,
+      settlementId,
+      issuerKingdomId,
+      kind: 'escort_caravan',
+      level: 2,
+      status: 'active',
+      assignedCharacterId: player.id,
+      requiredAmount: 8,
+      progress: 0,
+      rewardReputation: 8,
+      rewardBountyReduction: 6,
+      rewardGoods: { tools: 1 },
+      expiresTurn: world.turn + 12,
+      meta: {
+        peaceDividendOpportunity: true,
+        peaceDividendPartnerKingdomId: partnerKingdomId,
+        caravanId: 'lost-caravan',
+        caravanDelivered: false,
+      },
+    }
+
+    const messages = advanceWorldTurn(world, 18)
+    expect(world.contracts[contractId].status).toBe('expired')
+    expect(messages.some((line) => line.includes('Escort contract'))).toBe(true)
+    expect(messages.some((line) => line.includes('Peace dividend momentum collapsed'))).toBe(true)
+    expect(issuerPolicy.peaceDividendIntensity).toBe(0)
+    expect(partnerPolicy.peaceDividendIntensity).toBe(0)
+    expect(issuerPolicy.peaceDividendUntilTurn).toBe(-1)
+    expect(partnerPolicy.peaceDividendUntilTurn).toBe(-1)
+    expect(issuerPolicy.peaceDividendPartnerKingdomId).toBe('none')
+    expect(partnerPolicy.peaceDividendPartnerKingdomId).toBe('none')
+    expect(relationBetween(world, issuerKingdomId, partnerKingdomId)).toBeLessThan(relationBefore)
   })
 
   it('can trigger justice manhunts on world turns for notorious players', () => {

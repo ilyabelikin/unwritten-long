@@ -4,7 +4,12 @@ import { SeededRng } from '../random'
 import type { Character, World } from '../types'
 import { clamp } from '../utils'
 import { performAttack, healInCities, isAggressiveTowards, cityGuardSpawnTiles } from './combat'
-import { acceptContractForPlayer, progressActiveContractForPlayer, simulateContractBoardTurn } from './contracts'
+import {
+  acceptContractForPlayer,
+  progressActiveContractForPlayer,
+  simulateContractBoardTurn,
+  strainPeaceDividendFromFailedContract,
+} from './contracts'
 import { isAtWar, relationBetween, setRelation, setWarState, simulateDiplomacyTurn } from './diplomacy'
 import {
   effectiveBountyDecayPerTick,
@@ -549,6 +554,7 @@ export const advanceWorldTurn = (world: World, seedOffset = 0): string[] => {
     if (!delivered && (!caravan || !caravan.alive)) {
       contract.status = 'expired'
       messages.push(`Escort contract ${contract.id} failed after caravan loss.`)
+      messages.push(...strainPeaceDividendFromFailedContract(world, contract))
     }
   }
 

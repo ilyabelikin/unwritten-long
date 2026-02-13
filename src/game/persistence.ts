@@ -34,6 +34,33 @@ const ensureKingdomRelations = (world: World): void => {
   }
 }
 
+const ensureKingdomPoliciesAndConflicts = (world: World): void => {
+  if (!world.kingdomConflicts) world.kingdomConflicts = {}
+  const ids = Object.keys(world.kingdoms)
+  for (const kingdom of Object.values(world.kingdoms)) {
+    if (!kingdom.policy) {
+      kingdom.policy = {
+        taxRate: 0.12,
+        patrolFocus: 0.45,
+        tradeStance: 'balanced',
+      }
+    }
+    kingdom.policy.taxRate = Number.isFinite(kingdom.policy.taxRate) ? kingdom.policy.taxRate : 0.12
+    kingdom.policy.patrolFocus = Number.isFinite(kingdom.policy.patrolFocus)
+      ? kingdom.policy.patrolFocus
+      : 0.45
+    kingdom.policy.tradeStance = kingdom.policy.tradeStance ?? 'balanced'
+  }
+  for (let i = 0; i < ids.length; i += 1) {
+    for (let j = i + 1; j < ids.length; j += 1) {
+      const key = kingdomPairKey(ids[i], ids[j])
+      if (typeof world.kingdomConflicts[key] !== 'boolean') {
+        world.kingdomConflicts[key] = false
+      }
+    }
+  }
+}
+
 export const serializeWorld = (world: World): string =>
   JSON.stringify({
     version: SAVE_VERSION,
@@ -52,6 +79,7 @@ export const deserializeWorld = (payload: string): { world?: World; timestamp?: 
       ensureSettlementMeta(settlement)
     }
     ensureKingdomRelations(world)
+    ensureKingdomPoliciesAndConflicts(world)
     world.messages = world.messages ?? []
     return {
       world,

@@ -49,6 +49,7 @@ const createMiniWorld = (): World => ({
   },
   kingdoms: {},
   kingdomRelations: {},
+  kingdomConflicts: {},
   playerId: 'player',
   turn: 0,
   season: 'spring',

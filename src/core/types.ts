@@ -130,6 +130,11 @@ export interface Kingdom {
   name: string
   color: string
   capitalSettlementId?: string
+  policy: {
+    taxRate: number
+    patrolFocus: number
+    tradeStance: 'open' | 'balanced' | 'protectionist'
+  }
 }
 
 export interface World {
@@ -142,6 +147,7 @@ export interface World {
   characters: Record<string, Character>
   kingdoms: Record<string, Kingdom>
   kingdomRelations: Record<string, number>
+  kingdomConflicts: Record<string, boolean>
   playerId: string
   turn: number
   season: Season

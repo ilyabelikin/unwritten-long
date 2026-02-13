@@ -17,18 +17,26 @@ describe('game persistence', () => {
   it('migrates settlements missing meta defaults', () => {
     const world = generateWorld(6401)
     const settlement = Object.values(world.settlements)[0]
+    const kingdom = Object.values(world.kingdoms)[0]
     // simulate older save payload without meta
     // @ts-expect-error legacy payload intentionally omits field
     delete settlement.meta
     // @ts-expect-error legacy payload intentionally omits field
     delete world.kingdomRelations
+    // @ts-expect-error legacy payload intentionally omits field
+    delete world.kingdomConflicts
+    // @ts-expect-error legacy payload intentionally omits field
+    delete kingdom.policy
     const serialized = serializeWorld(world)
     const loaded = deserializeWorld(serialized)
     const loadedSettlement = loaded.world?.settlements[settlement.id]
+    const loadedKingdom = loaded.world?.kingdoms[kingdom.id]
     expect(loadedSettlement?.meta.cropStage).toBe('dormant')
     expect(loadedSettlement?.meta.foodStress).toBe(0)
     expect(loadedSettlement?.meta.prosperity).toBe(40)
     expect(Object.keys(loaded.world?.kingdomRelations ?? {})).not.toHaveLength(0)
+    expect(Object.keys(loaded.world?.kingdomConflicts ?? {})).not.toHaveLength(0)
+    expect(loadedKingdom?.policy.tradeStance).toBe('balanced')
   })
 })
 

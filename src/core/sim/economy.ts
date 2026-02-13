@@ -3,7 +3,7 @@ import { BUILDING_COSTS, BUILDING_TEMPLATES } from '../data/content'
 import { keyFor, neighborsOf, parseKey } from '../hex'
 import { safestPath, shortestPath } from '../pathing'
 import { SeededRng } from '../random'
-import { relationBetween } from './diplomacy'
+import { isAtWar, relationBetween } from './diplomacy'
 import type { BuildingType, Character, CropStage, Good, Settlement, SettlementTier, World } from '../types'
 import { addGoods, clamp, consumeGoods, createGoodRecord } from '../utils'
 
@@ -543,6 +543,9 @@ const spawnCaravan = (
   if (traders.length > 1) return
   if (settlement.treasury < 24) return
 
+  const homeKingdom = world.kingdoms[settlement.kingdomId]
+  const homeTradeStance = homeKingdom?.policy.tradeStance ?? 'balanced'
+
   let bestDeal:
     | {
         source: Settlement
@@ -563,6 +566,7 @@ const spawnCaravan = (
     for (const other of Object.values(world.settlements)) {
       if (other.id === settlement.id) continue
       const relation = relationBetween(world, settlement.kingdomId, other.kingdomId)
+      if (isAtWar(world, settlement.kingdomId, other.kingdomId)) continue
       if (relation <= -45) continue
       const surplus = other.stockpile[good] - other.needs[good]
       if (surplus <= 2) continue
@@ -570,7 +574,13 @@ const spawnCaravan = (
       const sellPrice = estimateGoodPrice(settlement, good, world.season)
       const qty = Math.min(10, Math.floor(surplus), Math.floor(deficit))
       if (qty < 2) continue
-      const tariff = settlement.kingdomId === other.kingdomId ? 0 : relation < 0 ? 0.2 : relation < 25 ? 0.11 : 0.04
+      const sourceTradeStance = world.kingdoms[other.kingdomId]?.policy.tradeStance ?? 'balanced'
+      const policyTariffOffset =
+        (homeTradeStance === 'protectionist' ? 0.06 : homeTradeStance === 'open' ? -0.03 : 0) +
+        (sourceTradeStance === 'protectionist' ? 0.05 : sourceTradeStance === 'open' ? -0.02 : 0)
+      const tariffBase =
+        settlement.kingdomId === other.kingdomId ? 0 : relation < 0 ? 0.2 : relation < 25 ? 0.11 : 0.04
+      const tariff = clamp(tariffBase + policyTariffOffset, 0, 0.35)
       const sourceCenter = other.tiles[0]
       const homeCenter = settlement.tiles[0]
       const tradePath = safestPath(world, homeCenter, sourceCenter, dangerByTile)
@@ -728,7 +738,8 @@ export const simulateEconomyTurn = (world: World, rng: SeededRng): string[] => {
       }
       addGoods(settlement.stockpile, production)
       const taxIncome = Object.values(production).reduce((acc, amount) => acc + amount * 0.4, 0)
-      settlement.treasury += Math.round(taxIncome)
+      const taxRate = world.kingdoms[settlement.kingdomId]?.policy.taxRate ?? 0.12
+      settlement.treasury += Math.round(taxIncome * (0.65 + taxRate))
     }
 
     if (settlement.buildings.some((b) => b.type === 'lumber_camp')) {

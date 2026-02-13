@@ -1,5 +1,6 @@
 import { keyFor, neighborsOf } from '../hex'
 import { SeededRng } from '../random'
+import { isAtWar, kingdomPairKey } from './diplomacy'
 import type { Character, Species, World } from '../types'
 
 const wildlifeForTile = (rng: SeededRng): Species => {
@@ -122,6 +123,36 @@ export const spawnWorldEvents = (world: World, rng: SeededRng): string[] => {
         const monster = createSimpleCharacter(id, 'monster', 'ogre', tileId, 'Raider Ogre')
         spawn(monster)
         messages.push(`A raiding monster approaches ${city.name}.`)
+      }
+    }
+  }
+
+  const warPairs = Object.keys(world.kingdomConflicts).filter((pair) => world.kingdomConflicts[pair])
+  if (warPairs.length > 0 && world.turn % 9 === 0 && rng.chance(0.65)) {
+    const selectedPair = warPairs[rng.int(0, warPairs.length - 1)]
+    const [leftKingdom, rightKingdom] = selectedPair.split('|')
+    if (isAtWar(world, leftKingdom, rightKingdom)) {
+      const borderTiles = world.tileOrder.filter((tileId) => {
+        const tile = world.tiles[tileId]
+        if (tile.kingdomId !== leftKingdom && tile.kingdomId !== rightKingdom) return false
+        return neighborsOf(tile.coord).some((neighbor) => {
+          const neighborTile = world.tiles[keyFor(neighbor.q, neighbor.r)]
+          if (!neighborTile || neighborTile.terrain === 'sea') return false
+          return kingdomPairKey(tile.kingdomId ?? '', neighborTile.kingdomId ?? '') === selectedPair
+        })
+      })
+
+      const spawnTile = borderTiles[rng.int(0, Math.max(0, borderTiles.length - 1))]
+      if (spawnTile) {
+        const id = `warband-${world.turn}-${rng.int(100, 999)}`
+        const warband = createSimpleCharacter(id, 'bandit', 'human', spawnTile, 'Warband')
+        warband.skills.combat = 6
+        warband.meta.hostile = true
+        warband.meta.warPair = selectedPair
+        spawn(warband)
+        messages.push(
+          `${world.kingdoms[leftKingdom]?.name ?? leftKingdom} and ${world.kingdoms[rightKingdom]?.name ?? rightKingdom} clashed at the frontier.`,
+        )
       }
     }
   }

@@ -3,7 +3,7 @@ import { BUILDING_TEMPLATES, FLAWS, HUMAN_FIRST_NAMES, KINGDOM_NAMES, SETTLEMENT
 import { keyFor, neighborsOf } from '../hex'
 import { shortestPath } from '../pathing'
 import { SeededRng, hashNoise } from '../random'
-import { buildInitialRelations } from '../sim/diplomacy'
+import { buildInitialConflicts, buildInitialRelations } from '../sim/diplomacy'
 import type { BuildingInstance, BuildingType, Character, Good, Kingdom, Resource, Season, Settlement, SettlementTier, Species, Tile, World } from '../types'
 import { createGoodRecord } from '../utils'
 
@@ -212,6 +212,11 @@ const assignKingdoms = (
       name,
       color: ['#d0b44c', '#5fa36a', '#9a6262'][index],
       capitalSettlementId: capitalSettlementIds[index],
+      policy: {
+        taxRate: [0.12, 0.1, 0.14][index],
+        patrolFocus: [0.45, 0.4, 0.52][index],
+        tradeStance: ['balanced', 'open', 'protectionist'][index] as 'open' | 'balanced' | 'protectionist',
+      },
     }
   })
 
@@ -465,7 +470,9 @@ export const generateWorld = (seed = Date.now() % 100000): World => {
   }
 
   const kingdoms = assignKingdoms(settlements, settlementCenters, tiles, rng)
-  const kingdomRelations = buildInitialRelations(Object.keys(kingdoms), rng)
+  const kingdomIds = Object.keys(kingdoms)
+  const kingdomRelations = buildInitialRelations(kingdomIds, rng)
+  const kingdomConflicts = buildInitialConflicts(kingdomIds, kingdomRelations)
 
   const worldSkeleton: World = {
     seed,
@@ -476,6 +483,7 @@ export const generateWorld = (seed = Date.now() % 100000): World => {
     settlements,
     kingdoms,
     kingdomRelations,
+    kingdomConflicts,
     characters: {},
     playerId: '',
     turn: 0,

@@ -176,9 +176,15 @@ const processNpcIntent = (world: World, actor: Character, rng: SeededRng, messag
 
   if (actor.role === 'guard') {
     const guardTiles = new Set(cityGuardSpawnTiles(world))
+    const guardCityId = actor.meta.guardCityId as string | undefined
+    const guardKingdomId = guardCityId ? world.settlements[guardCityId]?.kingdomId : actor.homeSettlementId
+      ? world.settlements[actor.homeSettlementId]?.kingdomId
+      : undefined
+    const patrolFocus = guardKingdomId ? world.kingdoms[guardKingdomId]?.policy.patrolFocus ?? 0.4 : 0.4
     const criminalHeat = getPlayerBounty(world)
     if (player.reputation < -20 || criminalHeat >= 20) {
-      const nearPlayer = hexDistance(parseKey(actor.location), parseKey(player.location)) <= 4
+      const chaseRadius = patrolFocus >= 0.75 ? 6 : patrolFocus >= 0.5 ? 5 : 4
+      const nearPlayer = hexDistance(parseKey(actor.location), parseKey(player.location)) <= chaseRadius
       const target = nearPlayer ? player.location : actor.location
       const step = stepToward(world, actor, target)
       if (step && guardTiles.has(step)) {
@@ -190,6 +196,7 @@ const processNpcIntent = (world: World, actor: Character, rng: SeededRng, messag
       }
       return
     }
+    if (!rng.chance(Math.min(0.95, 0.35 + patrolFocus))) return
     const options = neighborsLand(world, actor.location).filter((id) => guardTiles.has(id))
     if (options.length > 0) {
       const choice = options[rng.int(0, options.length - 1)]

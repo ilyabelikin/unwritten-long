@@ -26,6 +26,7 @@ A browser-based turn-based hex adventure simulation with:
 - Court factions (Merchant Bloc, War Hawks, Reformers) now compete to steer kingdom edicts and priorities.
 - Contracts now carry court directives from the ruling faction and adjust rewards/objectives accordingly.
 - Player now has separate court standing tracks (Merchant Bloc / War Hawks / Reformers).
+- High court-faction tension can now generate rivalry incidents with faction counter-mandate contracts.
 
 ## Tech
 
@@ -68,6 +69,7 @@ Then open the printed localhost URL.
 - **Court factions/tension** are visible per kingdom and can trigger influence shifts over time.
 - **Contract cards** now display issuing court directive/faction flavor where applicable.
 - **Patronage contracts** can require minimum court standing in addition to favor/reputation.
+- **Rivalry contracts** may target competing court factions and affect inter-faction standing on success/failure.
 - **Militia action**: spend tools to raise temporary local guards during dangerous periods.
 
 ## Rules implemented
@@ -84,6 +86,7 @@ Then open the printed localhost URL.
 - Faction dominance now shapes which edicts are likely (war hawk crackdowns, merchant trade fairs, reform relief).
 - Faction-backed contracts now bias incentives (security bounties, commerce goods, or civic aid rewards).
 - Completing court-directed contracts increases standing with that faction; failed active contracts can reduce it.
+- Rivalry mandate outcomes can raise your aligned faction standing while eroding rival faction standing.
 - HP ≤ 0 resolves to death/survival rules; city visit restores HP to full.
 - Bears mostly hibernate in winter, with rare aggressive wake-ups.
 - Seasonal crop cycle and food stress drive migration/growth/decline pressure in settlements.

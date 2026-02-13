@@ -198,7 +198,7 @@ describe('diplomacy simulation', () => {
     const leftPolicy = world.kingdoms[left].policy
     const rightPolicy = world.kingdoms[right].policy
     world.turn = 12
-    setRelation(world, left, right, -12)
+    setRelation(world, left, right, 8)
     leftPolicy.peaceDividendUntilTurn = world.turn + 18
     rightPolicy.peaceDividendUntilTurn = world.turn + 18
     leftPolicy.peaceDividendPartnerKingdomId = right
@@ -222,6 +222,34 @@ describe('diplomacy simulation', () => {
     expect(treasuryAfter).toBeGreaterThan(treasuryBefore)
   })
 
+  it('peace-dividend boosts pause while the corridor pair is back at war', () => {
+    const world = generateWorld(9911)
+    const [left, right] = Object.keys(world.kingdoms)
+    const leftPolicy = world.kingdoms[left].policy
+    const rightPolicy = world.kingdoms[right].policy
+    world.turn = 12
+    setRelation(world, left, right, 14)
+    setWarState(world, left, right, true)
+    leftPolicy.peaceDividendUntilTurn = world.turn + 18
+    rightPolicy.peaceDividendUntilTurn = world.turn + 18
+    leftPolicy.peaceDividendPartnerKingdomId = right
+    rightPolicy.peaceDividendPartnerKingdomId = left
+    leftPolicy.peaceDividendIntensity = 44
+    rightPolicy.peaceDividendIntensity = 44
+    const leftCapitalId = world.kingdoms[left].capitalSettlementId
+    const rightCapitalId = world.kingdoms[right].capitalSettlementId
+    expect(leftCapitalId).toBeDefined()
+    expect(rightCapitalId).toBeDefined()
+    if (!leftCapitalId || !rightCapitalId) return
+    const leftCapital = world.settlements[leftCapitalId]
+    const rightCapital = world.settlements[rightCapitalId]
+    const treasuryBefore = leftCapital.treasury + rightCapital.treasury
+
+    simulateDiplomacyTurn(world, new SeededRng(67))
+    const treasuryAfter = leftCapital.treasury + rightCapital.treasury
+    expect(treasuryAfter).toBe(treasuryBefore)
+  })
+
   it('peace dividends reduce siege pressure and food stress trends', () => {
     const world = generateWorld(9907)
     const [left, right] = Object.keys(world.kingdoms)
@@ -237,6 +265,7 @@ describe('diplomacy simulation', () => {
     world.kingdoms[right].policy.peaceDividendPartnerKingdomId = left
     world.kingdoms[left].policy.peaceDividendIntensity = 35
     world.kingdoms[right].policy.peaceDividendIntensity = 35
+    setRelation(world, left, right, 12)
     leftSettlement.meta.siegePressure = 25
     rightSettlement.meta.siegePressure = 24
     leftSettlement.meta.foodStress = 30

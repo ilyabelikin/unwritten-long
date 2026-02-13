@@ -159,17 +159,25 @@ const bilateralPeaceDividendIntensity = (world: World, left: string, right: stri
   return clamp(Math.min(leftPolicy.peaceDividendIntensity, rightPolicy.peaceDividendIntensity), 0, 100)
 }
 
+const stabilizedCorridorIntensity = (world: World, left: string, right: string): number => {
+  const intensity = bilateralPeaceDividendIntensity(world, left, right)
+  if (intensity <= 0) return 0
+  if (isAtWar(world, left, right)) return 0
+  if (relationBetween(world, left, right) < -4) return 0
+  return intensity
+}
+
 const bilateralPeaceCorridorIntensityForKingdom = (world: World, kingdomId: string): number => {
   const partnerId = world.kingdoms[kingdomId]?.policy.peaceDividendPartnerKingdomId
   if (!partnerId || partnerId === 'none') return 0
-  return bilateralPeaceDividendIntensity(world, kingdomId, partnerId)
+  return stabilizedCorridorIntensity(world, kingdomId, partnerId)
 }
 
 const applyPeaceDividendEffects = (world: World, messages: string[]): void => {
   const pairKeys = Object.keys(world.kingdomRelations)
   for (const pair of pairKeys) {
     const [left, right] = pair.split('|')
-    const intensity = bilateralPeaceDividendIntensity(world, left, right)
+    const intensity = stabilizedCorridorIntensity(world, left, right)
     if (intensity <= 0) continue
 
     const relationBoost = Math.max(1, Math.round(intensity / 14))
@@ -298,7 +306,7 @@ export const simulateDiplomacyTurn = (world: World, rng: SeededRng): string[] =>
       const a = kingdomIds[i]
       const b = kingdomIds[j]
       const current = relationBetween(world, a, b)
-      const peaceDividend = bilateralPeaceDividendIntensity(world, a, b)
+      const peaceDividend = stabilizedCorridorIntensity(world, a, b)
       const drift = peaceDividend > 0 ? rng.int(-3, 8) : rng.int(-8, 7)
       const next = clamp(current + drift, -100, 100)
       setRelation(world, a, b, next)

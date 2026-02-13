@@ -85,6 +85,7 @@ Then open the printed localhost URL.
 - **Peace-dividend opportunities** can appear on contract boards as boom-time escort/supply commissions.
 - **Boom-time contract outcomes** can reinforce or weaken active peace dividends depending on success/failure.
 - Some peace-dividend escorts now form explicit cross-border trade corridors with partner kingdoms.
+- Fraying corridors can post dedicated maintenance mandates to preserve détente logistics.
 - Losing a peace-corridor caravan can sharply damage or even collapse a fragile dividend détente.
 - Corridor-active cities apply softer guard/legal pressure (more bounty decay and reduced pardon burden).
 - Active corridors also reduce cross-border caravan tariffs and route risk, improving sustained inter-kingdom trade.

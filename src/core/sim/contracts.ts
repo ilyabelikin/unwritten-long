@@ -362,17 +362,17 @@ const capitalSettlementForKingdom = (world: World, kingdomId: string): Settlemen
 const activePeaceDividendForSettlement = (
   world: World,
   settlement: Settlement,
-): { intensity: number; partnerKingdomId?: string } => {
+): { intensity: number; partnerKingdomId?: string; turnsRemaining: number } => {
   const policy = world.kingdoms[settlement.kingdomId]?.policy
-  if (!policy) return { intensity: 0 }
-  if (policy.peaceDividendUntilTurn < world.turn) return { intensity: 0 }
+  if (!policy) return { intensity: 0, turnsRemaining: -1 }
+  if (policy.peaceDividendUntilTurn < world.turn) return { intensity: 0, turnsRemaining: -1 }
   const intensity = clamp(policy.peaceDividendIntensity, 0, 100)
   const partnerKingdomId =
     typeof policy.peaceDividendPartnerKingdomId === 'string' &&
     policy.peaceDividendPartnerKingdomId !== 'none'
       ? policy.peaceDividendPartnerKingdomId
       : undefined
-  return { intensity, partnerKingdomId }
+  return { intensity, partnerKingdomId, turnsRemaining: policy.peaceDividendUntilTurn - world.turn }
 }
 
 const createContractForSettlement = (
@@ -392,6 +392,13 @@ const createContractForSettlement = (
   const courtFaction = courtFactionForSettlement(world, settlement)
   const peaceDividend = activePeaceDividendForSettlement(world, settlement)
   const peaceBoom = peaceDividend.intensity >= 14 && !underSiege && settlement.meta.foodStress < 42
+  const corridorRelation = peaceDividend.partnerKingdomId
+    ? relationBetween(world, settlement.kingdomId, peaceDividend.partnerKingdomId)
+    : 0
+  const corridorMaintenancePressure =
+    Boolean(peaceDividend.partnerKingdomId) &&
+    peaceBoom &&
+    (peaceDividend.turnsRemaining <= 4 || corridorRelation < 18 || settlement.meta.siegePressure > 12)
   const campaignRank = Math.floor((world.campaignProgress[settlement.kingdomId] ?? 0) / 3)
   const baseLevel = settlement.tier === 'city' ? 3 : settlement.tier === 'town' ? 2 : 1
   const level = clamp(
@@ -405,15 +412,29 @@ const createContractForSettlement = (
   )
   let contract: Contract
   if (peaceBoom && !hasWar && rng.chance(clamp(0.26 + peaceDividend.intensity * 0.008, 0.26, 0.68))) {
-    contract =
-      settlement.tier === 'city' || rng.chance(0.42)
-        ? createEscortContract(world, settlement, rng, level)
-        : createFoodDeliveryContract(world, settlement, rng, level)
+    if (corridorMaintenancePressure && rng.chance(0.62)) {
+      contract =
+        settlement.tier !== 'hamlet' && (settlement.meta.siegePressure > 10 || corridorRelation < 12)
+          ? createDefendContract(world, settlement, rng, level)
+          : createEscortContract(world, settlement, rng, level)
+      contract.meta.corridorMaintenance = true
+      contract.rewardReputation += 2
+      contract.rewardBountyReduction += 2
+      contract.expiresTurn += 1
+    } else {
+      contract =
+        settlement.tier === 'city' || rng.chance(0.42)
+          ? createEscortContract(world, settlement, rng, level)
+          : createFoodDeliveryContract(world, settlement, rng, level)
+    }
     contract.rewardReputation += 2
     contract.rewardGoods.tools = (contract.rewardGoods.tools ?? 0) + 1
     if (contract.kind === 'deliver_food') {
       contract.good = rng.pick(['grain', 'fish', 'vegetables'] as Good[])
       contract.rewardGoods.grain = (contract.rewardGoods.grain ?? 0) + 1
+      if (contract.meta.corridorMaintenance === true) {
+        contract.requiredAmount = clamp(contract.requiredAmount + 1, 6, 20)
+      }
     } else {
       const partnerDestination = peaceDividend.partnerKingdomId
         ? findNearbySettlementMatching(
@@ -725,7 +746,8 @@ const reinforcePeaceDividendFromContract = (world: World, contract: Contract): s
   const destinationId = contract.meta.destinationSettlementId as string | undefined
   const destination = destinationId ? world.settlements[destinationId] : undefined
   const corridorAligned = contract.meta.peaceCorridor === true && destination?.kingdomId === partner
-  const relationBoost = 2 + Math.floor(contract.level / 2) + (corridorAligned ? 1 : 0)
+  const maintenanceMandate = contract.meta.corridorMaintenance === true
+  const relationBoost = 2 + Math.floor(contract.level / 2) + (corridorAligned ? 1 : 0) + (maintenanceMandate ? 1 : 0)
   setRelation(
     world,
     contract.issuerKingdomId,
@@ -733,10 +755,15 @@ const reinforcePeaceDividendFromContract = (world: World, contract: Contract): s
     relationBetween(world, contract.issuerKingdomId, partner) + relationBoost,
   )
 
-  const intensityBoost = clamp(2 + Math.floor(contract.level / 2) + (corridorAligned ? 1 : 0), 1, 8)
+  const intensityBoost = clamp(
+    2 + Math.floor(contract.level / 2) + (corridorAligned ? 1 : 0) + (maintenanceMandate ? 1 : 0),
+    1,
+    8,
+  )
   pair.leftPolicy.peaceDividendIntensity = clamp(pair.leftPolicy.peaceDividendIntensity + intensityBoost, 0, 100)
   pair.rightPolicy.peaceDividendIntensity = clamp(pair.rightPolicy.peaceDividendIntensity + intensityBoost, 0, 100)
-  const extension = 2 + Math.floor(contract.level / 2) + (corridorAligned ? 1 : 0)
+  const extension =
+    2 + Math.floor(contract.level / 2) + (corridorAligned ? 1 : 0) + (maintenanceMandate ? 1 : 0)
   pair.leftPolicy.peaceDividendUntilTurn = Math.max(
     pair.leftPolicy.peaceDividendUntilTurn,
     world.turn + extension,
@@ -746,7 +773,9 @@ const reinforcePeaceDividendFromContract = (world: World, contract: Contract): s
     world.turn + extension,
   )
   return [
-    corridorAligned
+    maintenanceMandate
+      ? 'Peace corridor maintenance mandate succeeded and reinforced détente logistics.'
+      : corridorAligned
       ? 'Cross-border peace corridor strengthened by successful boom-time commission.'
       : 'Peace-dividend corridor strengthened by successful boom-time commission.',
   ]
@@ -759,14 +788,16 @@ export const strainPeaceDividendFromFailedContract = (world: World, contract: Co
   const pair = activePeaceDividendPair(world, contract.issuerKingdomId, partner)
   if (!pair) return []
 
-  const intensityLoss = clamp(3 + Math.floor(contract.level / 2), 2, 9)
+  const maintenanceMandate = contract.meta.corridorMaintenance === true
+  const intensityLoss = clamp(3 + Math.floor(contract.level / 2) + (maintenanceMandate ? 2 : 0), 2, 9)
   pair.leftPolicy.peaceDividendIntensity = clamp(pair.leftPolicy.peaceDividendIntensity - intensityLoss, 0, 100)
   pair.rightPolicy.peaceDividendIntensity = clamp(pair.rightPolicy.peaceDividendIntensity - intensityLoss, 0, 100)
   setRelation(
     world,
     contract.issuerKingdomId,
     partner,
-    relationBetween(world, contract.issuerKingdomId, partner) - Math.max(1, Math.floor(intensityLoss / 2)),
+    relationBetween(world, contract.issuerKingdomId, partner) -
+      Math.max(1, Math.floor(intensityLoss / 2) + (maintenanceMandate ? 1 : 0)),
   )
   if (pair.leftPolicy.peaceDividendIntensity <= 2 || pair.rightPolicy.peaceDividendIntensity <= 2) {
     pair.leftPolicy.peaceDividendIntensity = 0
@@ -775,9 +806,17 @@ export const strainPeaceDividendFromFailedContract = (world: World, contract: Co
     pair.rightPolicy.peaceDividendUntilTurn = -1
     pair.leftPolicy.peaceDividendPartnerKingdomId = 'none'
     pair.rightPolicy.peaceDividendPartnerKingdomId = 'none'
-    return ['Peace dividend momentum collapsed after failed boom-time contracts.']
+    return [
+      maintenanceMandate
+        ? 'Peace corridor maintenance failure collapsed détente momentum.'
+        : 'Peace dividend momentum collapsed after failed boom-time contracts.',
+    ]
   }
-  return ['Peace dividend momentum faltered after a failed boom-time contract.']
+  return [
+    maintenanceMandate
+      ? 'Peace corridor maintenance failure strained corridor trust.'
+      : 'Peace dividend momentum faltered after a failed boom-time contract.',
+  ]
 }
 
 const createDiplomaticOppositionContract = (

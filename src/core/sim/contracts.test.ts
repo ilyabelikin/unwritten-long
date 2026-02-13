@@ -422,6 +422,48 @@ describe('contracts system', () => {
     expect(foundCorridor).toBe(true)
   })
 
+  it('can post corridor-maintenance mandates when corridor trust is fragile', () => {
+    const base = generateWorld(9428)
+    const settlement = Object.values(base.settlements).find((candidate) => candidate.tier !== 'hamlet')
+    expect(settlement).toBeDefined()
+    if (!settlement) return
+    const partnerKingdomId = Object.keys(base.kingdoms).find((id) => id !== settlement.kingdomId)
+    expect(partnerKingdomId).toBeDefined()
+    if (!partnerKingdomId) return
+
+    let foundMaintenance = false
+    for (let seed = 1; seed <= 40 && !foundMaintenance; seed += 1) {
+      const world = structuredClone(base)
+      world.turn = 6
+      world.contracts = {}
+      const target = world.settlements[settlement.id]
+      target.meta.siegePressure = 14
+      target.meta.foodStress = 10
+      world.kingdoms[target.kingdomId].policy.peaceDividendPartnerKingdomId = partnerKingdomId
+      world.kingdoms[partnerKingdomId].policy.peaceDividendPartnerKingdomId = target.kingdomId
+      world.kingdoms[target.kingdomId].policy.peaceDividendUntilTurn = world.turn + 3
+      world.kingdoms[partnerKingdomId].policy.peaceDividendUntilTurn = world.turn + 3
+      world.kingdoms[target.kingdomId].policy.peaceDividendIntensity = 26
+      world.kingdoms[partnerKingdomId].policy.peaceDividendIntensity = 26
+      setRelation(world, target.kingdomId, partnerKingdomId, 12)
+      setWarState(world, target.kingdomId, partnerKingdomId, false)
+
+      simulateContractBoardTurn(world, new SeededRng(seed))
+      const maintenance = Object.values(world.contracts).find(
+        (contract) =>
+          contract.settlementId === target.id &&
+          contract.meta.peaceDividendOpportunity === true &&
+          contract.meta.corridorMaintenance === true,
+      )
+      if (maintenance) {
+        foundMaintenance = true
+        expect(['escort_caravan', 'defend_settlement', 'deliver_food']).toContain(maintenance.kind)
+      }
+    }
+
+    expect(foundMaintenance).toBe(true)
+  })
+
   it('still prioritizes defense over peace opportunities under active siege', () => {
     const base = generateWorld(9424)
     const settlement = Object.values(base.settlements).find((candidate) => candidate.tier !== 'hamlet')
@@ -508,6 +550,61 @@ describe('contracts system', () => {
     expect(partnerPolicy.peaceDividendIntensity).toBeGreaterThan(20)
     expect(issuerPolicy.peaceDividendUntilTurn).toBeGreaterThan(untilBefore)
     expect(partnerPolicy.peaceDividendUntilTurn).toBeGreaterThan(untilBefore)
+  })
+
+  it('corridor maintenance contracts provide stronger peace reinforcement', () => {
+    const world = generateWorld(9429)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const settlement = world.settlements[settlementId]
+    const issuerKingdomId = settlement.kingdomId
+    const partnerKingdomId = Object.keys(world.kingdoms).find((id) => id !== issuerKingdomId)
+    expect(partnerKingdomId).toBeDefined()
+    if (!partnerKingdomId) return
+
+    const issuerPolicy = world.kingdoms[issuerKingdomId].policy
+    const partnerPolicy = world.kingdoms[partnerKingdomId].policy
+    issuerPolicy.peaceDividendUntilTurn = world.turn + 2
+    partnerPolicy.peaceDividendUntilTurn = world.turn + 2
+    issuerPolicy.peaceDividendPartnerKingdomId = partnerKingdomId
+    partnerPolicy.peaceDividendPartnerKingdomId = issuerKingdomId
+    issuerPolicy.peaceDividendIntensity = 18
+    partnerPolicy.peaceDividendIntensity = 18
+    setRelation(world, issuerKingdomId, partnerKingdomId, 8)
+    const relationBefore = relationBetween(world, issuerKingdomId, partnerKingdomId)
+    const intensityBefore = issuerPolicy.peaceDividendIntensity
+    const untilBefore = issuerPolicy.peaceDividendUntilTurn
+
+    const contractId = `corridor-maint-${world.turn}`
+    world.contracts[contractId] = {
+      id: contractId,
+      settlementId,
+      issuerKingdomId,
+      kind: 'deliver_food',
+      level: 2,
+      status: 'available',
+      good: 'grain',
+      requiredAmount: 5,
+      progress: 0,
+      rewardReputation: 8,
+      rewardBountyReduction: 6,
+      rewardGoods: { tools: 1 },
+      expiresTurn: world.turn + 20,
+      meta: {
+        peaceDividendOpportunity: true,
+        corridorMaintenance: true,
+        peaceDividendPartnerKingdomId: partnerKingdomId,
+      },
+    }
+    player.inventory.grain = 8
+    playerAcceptContract(world, contractId)
+    const result = playerProgressContract(world)
+    expect(result.some((line) => line.includes('maintenance mandate succeeded'))).toBe(true)
+    expect(relationBetween(world, issuerKingdomId, partnerKingdomId)).toBeGreaterThan(relationBefore + 2)
+    expect(issuerPolicy.peaceDividendIntensity).toBeGreaterThan(intensityBefore + 2)
+    expect(issuerPolicy.peaceDividendUntilTurn).toBeGreaterThan(untilBefore + 1)
   })
 
   it('failing active peace-opportunity contracts can collapse weak dividends', () => {

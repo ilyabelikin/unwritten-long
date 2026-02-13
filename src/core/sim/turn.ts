@@ -267,6 +267,8 @@ const processNpcIntent = (world: World, actor: Character, rng: SeededRng, messag
       if (actor.location === target) {
         const settle = world.settlements[targetSettlementId!]
         const returningHome = actor.meta.returningHome === true
+        const demobilizedPair =
+          typeof actor.meta.demobilizedFromWarPair === 'string' ? actor.meta.demobilizedFromWarPair : undefined
         actor.role = 'villager'
         actor.homeSettlementId = settle.id
         settle.populationIds.push(actor.id)
@@ -275,6 +277,21 @@ const processNpcIntent = (world: World, actor: Character, rng: SeededRng, messag
           settle.meta.prosperity = clamp(settle.meta.prosperity + 1.5, 0, 100)
           settle.meta.foodStress = clamp(settle.meta.foodStress - 1.2, 0, 100)
           messages.push(`${actor.name} returned home to ${settle.name} as border tensions eased.`)
+        } else if (demobilizedPair) {
+          settle.meta.prosperity = clamp(settle.meta.prosperity + 1, 0, 100)
+          settle.meta.foodStress = clamp(settle.meta.foodStress - 1, 0, 100)
+          const [leftKingdom, rightKingdom] = demobilizedPair.split('|')
+          if (leftKingdom && rightKingdom && world.kingdoms[leftKingdom] && world.kingdoms[rightKingdom]) {
+            const relation = relationBetween(world, leftKingdom, rightKingdom)
+            if (!isAtWar(world, leftKingdom, rightKingdom)) {
+              setRelation(world, leftKingdom, rightKingdom, relation + 2)
+            }
+            const leftPolicy = world.kingdoms[leftKingdom].policy
+            const rightPolicy = world.kingdoms[rightKingdom].policy
+            leftPolicy.factionTension = clamp(leftPolicy.factionTension - 2, 0, 100)
+            rightPolicy.factionTension = clamp(rightPolicy.factionTension - 2, 0, 100)
+          }
+          messages.push(`${actor.name} laid down arms and settled in ${settle.name}.`)
         } else {
           messages.push(`${actor.name} joined ${settle.name}.`)
         }

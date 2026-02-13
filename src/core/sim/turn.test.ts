@@ -455,6 +455,47 @@ describe('turn simulation', () => {
     expect(messages.some((line) => line.includes('returned home'))).toBe(true)
   })
 
+  it('demobilized warbands settling as migrants improve local and diplomatic stability', () => {
+    const world = generateWorld(9106)
+    const [leftKingdom, rightKingdom] = Object.keys(world.kingdoms)
+    setWarState(world, leftKingdom, rightKingdom, false)
+    setRelation(world, leftKingdom, rightKingdom, 6)
+    const target = Object.values(world.settlements).find(
+      (settlement) => settlement.kingdomId === leftKingdom || settlement.kingdomId === rightKingdom,
+    )
+    expect(target).toBeDefined()
+    if (!target) return
+    const relationBefore = relationBetween(world, leftKingdom, rightKingdom)
+    const leftTensionBefore = world.kingdoms[leftKingdom].policy.factionTension
+    const rightTensionBefore = world.kingdoms[rightKingdom].policy.factionTension
+
+    const template = world.characters[world.playerId]
+    world.characters['demobilized-migrant-test'] = {
+      ...template,
+      id: 'demobilized-migrant-test',
+      name: 'Former Warband',
+      role: 'migrant',
+      location: target.tiles[0],
+      homeSettlementId: undefined,
+      targetTileId: undefined,
+      alive: true,
+      inventory: {},
+      meta: {
+        targetSettlementId: target.id,
+        demobilizedFromWarPair: [leftKingdom, rightKingdom].sort().join('|'),
+      },
+    }
+
+    const messages = advanceWorldTurn(world, 21)
+    const converted = world.characters['demobilized-migrant-test']
+    expect(converted.role).toBe('villager')
+    expect(converted.homeSettlementId).toBe(target.id)
+    expect(messages.some((line) => line.includes('laid down arms'))).toBe(true)
+    expect(relationBetween(world, leftKingdom, rightKingdom)).toBeGreaterThan(relationBefore)
+    expect(world.kingdoms[leftKingdom].policy.factionTension).toBeLessThanOrEqual(leftTensionBefore)
+    expect(world.kingdoms[rightKingdom].policy.factionTension).toBeLessThanOrEqual(rightTensionBefore)
+  })
+
   it('coordinating escort marks caravan contact for active contract', () => {
     const world = generateWorld(9098)
     const player = world.characters[world.playerId]

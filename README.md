@@ -118,6 +118,7 @@ Then open the printed localhost URL.
 - Strong peace-dividend corridors can demobilize frontier warbands into deserters or civilian migrants.
 - Corridor-backed diplomacy incidents now favor trade charters and can de-escalate border crises through mediation.
 - Bandit road raids are increasingly diverted away from strongly stabilized corridor routes.
+- Demobilized deserters who resettle can modestly improve local stability and ease bilateral tension.
 - HP ≤ 0 resolves to death/survival rules; city visit restores HP to full.
 - Bears mostly hibernate in winter, with rare aggressive wake-ups.
 - Seasonal crop cycle and food stress drive migration/growth/decline pressure in settlements.

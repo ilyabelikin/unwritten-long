@@ -12,6 +12,7 @@ A browser-based turn-based hex adventure simulation with:
 - Local save/load support with world-state persistence.
 - Kingdom diplomacy with dynamic relations, conflicts, policy shifts, and tariff-aware trade risk.
 - Diplomatic incident chain (trade charters, border crises, armistice pressure) affecting treasury and tensions.
+- Settlement contract board system (food deliveries and bandit hunts) with player acceptance/progression.
 
 ## Tech
 
@@ -42,6 +43,7 @@ Then open the printed localhost URL.
 - **Save / Load** buttons: persist and restore game state from browser local storage.
 - **Overlay selector**: switch map intel between terrain, kingdoms, economy, and danger.
 - **Civic actions in settlements**: donate supplies, sponsor diplomatic talks, and request city pardons.
+- **Contract board in settlements**: accept local contracts and report progress for rewards.
 
 ## Rules implemented
 

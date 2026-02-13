@@ -282,6 +282,7 @@ export const Hud = ({
                       : ''}
                   </p>
                 )}
+                {activeContract.meta.peaceCorridor === true && <p>Cross-border peace corridor commission</p>}
                 {activeContract.meta.courtPatronage === true && (
                   <p>Patronage tier: {String(activeContract.meta.courtPatronTitle ?? 'Court Patronage')}</p>
                 )}
@@ -397,6 +398,7 @@ export const Hud = ({
                               : ''}
                           </p>
                         )}
+                        {contract.meta.peaceCorridor === true && <p>Cross-border peace corridor commission</p>}
                         {contract.meta.courtPatronage === true && (
                           <p>Patronage: {String(contract.meta.courtPatronTitle ?? 'Court Patronage')}</p>
                         )}

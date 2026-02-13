@@ -224,6 +224,23 @@ const findNearbySettlement = (world: World, settlement: Settlement): Settlement 
     .sort((a, b) => a.distance - b.distance)[0]?.settlement
 }
 
+const findNearbySettlementMatching = (
+  world: World,
+  settlement: Settlement,
+  predicate: (candidate: Settlement) => boolean,
+): Settlement | undefined => {
+  const center = world.tiles[settlement.tiles[0]].coord
+  return Object.values(world.settlements)
+    .filter((candidate) => candidate.id !== settlement.id && predicate(candidate))
+    .map((candidate) => ({
+      settlement: candidate,
+      distance:
+        Math.abs(center.q - world.tiles[candidate.tiles[0]].coord.q) +
+        Math.abs(center.r - world.tiles[candidate.tiles[0]].coord.r),
+    }))
+    .sort((a, b) => a.distance - b.distance)[0]?.settlement
+}
+
 const createEscortContract = (
   world: World,
   settlement: Settlement,
@@ -398,6 +415,17 @@ const createContractForSettlement = (
       contract.good = rng.pick(['grain', 'fish', 'vegetables'] as Good[])
       contract.rewardGoods.grain = (contract.rewardGoods.grain ?? 0) + 1
     } else {
+      const partnerDestination = peaceDividend.partnerKingdomId
+        ? findNearbySettlementMatching(
+            world,
+            settlement,
+            (candidate) => candidate.kingdomId === peaceDividend.partnerKingdomId,
+          )
+        : undefined
+      if (partnerDestination) {
+        contract.meta.destinationSettlementId = partnerDestination.id
+        contract.meta.peaceCorridor = true
+      }
       contract.good = rng.pick(['tools', 'grain', 'iron_ingot'] as Good[])
     }
     contract.expiresTurn += 2
@@ -694,7 +722,10 @@ const reinforcePeaceDividendFromContract = (world: World, contract: Contract): s
   const pair = activePeaceDividendPair(world, contract.issuerKingdomId, partner)
   if (!pair) return []
 
-  const relationBoost = 2 + Math.floor(contract.level / 2)
+  const destinationId = contract.meta.destinationSettlementId as string | undefined
+  const destination = destinationId ? world.settlements[destinationId] : undefined
+  const corridorAligned = contract.meta.peaceCorridor === true && destination?.kingdomId === partner
+  const relationBoost = 2 + Math.floor(contract.level / 2) + (corridorAligned ? 1 : 0)
   setRelation(
     world,
     contract.issuerKingdomId,
@@ -702,10 +733,10 @@ const reinforcePeaceDividendFromContract = (world: World, contract: Contract): s
     relationBetween(world, contract.issuerKingdomId, partner) + relationBoost,
   )
 
-  const intensityBoost = clamp(2 + Math.floor(contract.level / 2), 1, 8)
+  const intensityBoost = clamp(2 + Math.floor(contract.level / 2) + (corridorAligned ? 1 : 0), 1, 8)
   pair.leftPolicy.peaceDividendIntensity = clamp(pair.leftPolicy.peaceDividendIntensity + intensityBoost, 0, 100)
   pair.rightPolicy.peaceDividendIntensity = clamp(pair.rightPolicy.peaceDividendIntensity + intensityBoost, 0, 100)
-  const extension = 2 + Math.floor(contract.level / 2)
+  const extension = 2 + Math.floor(contract.level / 2) + (corridorAligned ? 1 : 0)
   pair.leftPolicy.peaceDividendUntilTurn = Math.max(
     pair.leftPolicy.peaceDividendUntilTurn,
     world.turn + extension,
@@ -714,7 +745,11 @@ const reinforcePeaceDividendFromContract = (world: World, contract: Contract): s
     pair.rightPolicy.peaceDividendUntilTurn,
     world.turn + extension,
   )
-  return ['Peace-dividend corridor strengthened by successful boom-time commission.']
+  return [
+    corridorAligned
+      ? 'Cross-border peace corridor strengthened by successful boom-time commission.'
+      : 'Peace-dividend corridor strengthened by successful boom-time commission.',
+  ]
 }
 
 const strainPeaceDividendFromFailedContract = (world: World, contract: Contract): string[] => {

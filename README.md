@@ -83,6 +83,7 @@ Then open the printed localhost URL.
 - **Peace dividend status** is shown per kingdom (partner, intensity, and expiry turn).
 - **Peace-dividend opportunities** can appear on contract boards as boom-time escort/supply commissions.
 - **Boom-time contract outcomes** can reinforce or weaken active peace dividends depending on success/failure.
+- Some peace-dividend escorts now form explicit cross-border trade corridors with partner kingdoms.
 - **Militia action**: spend tools to raise temporary local guards during dangerous periods.
 
 ## Rules implemented

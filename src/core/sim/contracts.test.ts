@@ -374,6 +374,54 @@ describe('contracts system', () => {
     expect(foundPeaceOpportunity).toBe(true)
   })
 
+  it('peace-opportunity escort contracts can target partner-kingdom corridors', () => {
+    const base = generateWorld(9427)
+    const settlement = Object.values(base.settlements).find((candidate) => candidate.tier === 'city')
+    expect(settlement).toBeDefined()
+    if (!settlement) return
+    const partnerKingdomId = Object.keys(base.kingdoms).find((id) => id !== settlement.kingdomId)
+    expect(partnerKingdomId).toBeDefined()
+    if (!partnerKingdomId) return
+    const hasPartnerSettlement = Object.values(base.settlements).some(
+      (candidate) => candidate.kingdomId === partnerKingdomId,
+    )
+    expect(hasPartnerSettlement).toBe(true)
+    if (!hasPartnerSettlement) return
+
+    let foundCorridor = false
+    for (let seed = 1; seed <= 42 && !foundCorridor; seed += 1) {
+      const world = structuredClone(base)
+      world.turn = 6
+      world.contracts = {}
+      for (const key of Object.keys(world.kingdomConflicts)) {
+        world.kingdomConflicts[key] = false
+      }
+      const target = world.settlements[settlement.id]
+      target.meta.siegePressure = 0
+      target.meta.foodStress = 9
+      const policy = world.kingdoms[target.kingdomId].policy
+      policy.peaceDividendUntilTurn = world.turn + 12
+      policy.peaceDividendIntensity = 40
+      policy.peaceDividendPartnerKingdomId = partnerKingdomId
+
+      simulateContractBoardTurn(world, new SeededRng(seed))
+      const corridorEscort = Object.values(world.contracts).find(
+        (contract) =>
+          contract.settlementId === target.id &&
+          contract.meta.peaceDividendOpportunity === true &&
+          contract.kind === 'escort_caravan' &&
+          contract.meta.peaceCorridor === true,
+      )
+      if (!corridorEscort) continue
+      const destinationId = corridorEscort.meta.destinationSettlementId as string | undefined
+      if (!destinationId || !world.settlements[destinationId]) continue
+      foundCorridor = true
+      expect(world.settlements[destinationId].kingdomId).toBe(partnerKingdomId)
+    }
+
+    expect(foundCorridor).toBe(true)
+  })
+
   it('still prioritizes defense over peace opportunities under active siege', () => {
     const base = generateWorld(9424)
     const settlement = Object.values(base.settlements).find((candidate) => candidate.tier !== 'hamlet')

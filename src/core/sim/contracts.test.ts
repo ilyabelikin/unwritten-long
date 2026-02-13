@@ -274,6 +274,7 @@ describe('contracts system', () => {
 
     const settlement = world.settlements[stage1.settlementId]
     player.location = settlement.tiles[0]
+    player.reputation = 60
     const lockedAttempt = playerAcceptContract(world, stage2.id)
     expect(lockedAttempt[0]).toContain('locked')
 
@@ -445,6 +446,66 @@ describe('contracts system', () => {
     } else {
       expect(['escort_caravan', 'hunt_bandits']).toContain(exclusive.kind)
     }
+  })
+
+  it('gates contracts by minimum reputation requirement', () => {
+    const world = generateWorld(9425)
+    const player = world.characters[world.playerId]
+    const settlementId = world.tiles[player.location].settlementId
+    expect(settlementId).toBeDefined()
+    if (!settlementId) return
+    const settlement = world.settlements[settlementId]
+    const kingdomId = settlement.kingdomId
+    const contractId = `rank-gated-${world.turn}`
+    world.contracts[contractId] = {
+      id: contractId,
+      settlementId,
+      issuerKingdomId: kingdomId,
+      kind: 'defend_settlement',
+      level: 3,
+      status: 'available',
+      requiredAmount: 2,
+      progress: 0,
+      rewardReputation: 10,
+      rewardBountyReduction: 8,
+      rewardGoods: { gold_ore: 1 },
+      expiresTurn: world.turn + 18,
+      meta: {
+        minReputation: 32,
+      },
+    }
+
+    player.reputation = 20
+    const denied = playerAcceptContract(world, contractId)
+    expect(denied[0]).toContain('requires reputation')
+    expect(world.contracts[contractId].status).toBe('available')
+
+    player.reputation = 34
+    const accepted = playerAcceptContract(world, contractId)
+    expect(accepted[0]).toContain('accepted')
+    expect(world.contracts[contractId].status).toBe('active')
+  })
+
+  it('assigns escalating reputation requirements to royal campaign stages', () => {
+    const world = generateWorld(9426)
+    const kingdomId = Object.keys(world.kingdoms).find(
+      (id) => Object.values(world.settlements).filter((settlement) => settlement.kingdomId === id).length >= 2,
+    )
+    expect(kingdomId).toBeDefined()
+    if (!kingdomId) return
+    world.campaignProgress[kingdomId] = 8
+    world.turn = 10
+    simulateContractBoardTurn(world, new SeededRng(26))
+
+    const stages = Object.values(world.contracts)
+      .filter((contract) => contract.issuerKingdomId === kingdomId && Boolean(contract.meta.campaignChainId))
+      .sort((a, b) => Number(a.meta.campaignStage) - Number(b.meta.campaignStage))
+    expect(stages.length).toBeGreaterThanOrEqual(3)
+    if (stages.length < 3) return
+    const stageRep = stages.map((contract) => Number(contract.meta.minReputation ?? 0))
+    expect(stageRep[0]).toBeGreaterThan(0)
+    expect(stageRep[1]).toBeGreaterThan(stageRep[0])
+    expect(stageRep[2]).toBeGreaterThan(stageRep[1])
   })
 })
 

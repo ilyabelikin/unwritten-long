@@ -1,4 +1,5 @@
 import { estimateGoodPrice } from '../core/sim/economy'
+import { campaignRankInfo, campaignRankTitleForReputation } from '../core/sim/campaignRank'
 import { SPECIES_LABEL } from '../core/data/content'
 import { relationBetween } from '../core/sim/diplomacy'
 import { favorRankTitle } from '../core/sim/favor'
@@ -84,6 +85,7 @@ export const Hud = ({
     : []
   const kingdomIds = Object.keys(world.kingdoms)
   const activeConflicts = Object.keys(world.kingdomConflicts).filter((key) => world.kingdomConflicts[key])
+  const playerCampaignRank = campaignRankInfo(player.reputation)
 
   return (
     <aside className="hud">
@@ -97,6 +99,7 @@ export const Hud = ({
           HP {player.hp}/{player.maxHp} · AP {player.ap}/{player.maxAp} · Reputation {player.reputation} · Bounty{' '}
           {Number(player.meta.bounty ?? 0)}
         </span>
+        <span>Campaign rank: {playerCampaignRank.title}</span>
         <span>
           Local favor:{' '}
           {playerSettlement
@@ -216,42 +219,57 @@ export const Hud = ({
             ) : availableContracts.length > 0 ? (
               <div className="contract-list">
                 {availableContracts.map((contract) => (
-                  <div key={contract.id} className="contract-card">
-                    <p>
-                      {contract.kind === 'deliver_food'
-                        ? `Deliver ${contract.requiredAmount} ${contract.good}`
-                        : contract.kind === 'hunt_bandits'
-                          ? `Hunt ${contract.requiredAmount} bandit group`
-                          : contract.kind === 'escort_caravan'
-                            ? `Escort caravan carrying ${contract.requiredAmount} ${contract.good}`
-                            : `Defend settlement from ${contract.requiredAmount} hostile groups`}
-                    </p>
-                    <p>Tier: {contract.level}</p>
-                    {contract.meta.exclusive === true && (
-                      <p>
-                        Exclusive: {showExclusivePool(contract.meta.exclusivePool)} ·{' '}
-                        {String(contract.meta.exclusiveTitle ?? 'Special commission')} · Min favor{' '}
-                        {Number(contract.meta.minFavor ?? 0)}
-                      </p>
-                    )}
-                    {typeof contract.meta.campaignChainId === 'string' && (
-                      <p>
-                        Stage {Number(contract.meta.campaignStage)}/{Number(contract.meta.campaignTotalStages)}
-                      </p>
-                    )}
-                    {contract.meta.campaign === true && <p>Royal objective</p>}
-                    <p>
-                      Reward: +{contract.rewardReputation} rep · {Object.entries(contract.rewardGoods)
-                        .map(([good, qty]) => `${qty} ${good}`)
-                        .join(', ') || 'civic favor'}
-                    </p>
-                    <button
-                      onClick={() => onAcceptContract(contract.id)}
-                      disabled={contract.meta.locked === true}
-                    >
-                      {contract.meta.locked === true ? 'Locked Stage' : 'Accept Contract'}
-                    </button>
-                  </div>
+                  (() => {
+                    const minReputation = Number(contract.meta.minReputation ?? 0)
+                    const reputationLocked = minReputation > 0 && player.reputation < minReputation
+                    return (
+                      <div key={contract.id} className="contract-card">
+                        <p>
+                          {contract.kind === 'deliver_food'
+                            ? `Deliver ${contract.requiredAmount} ${contract.good}`
+                            : contract.kind === 'hunt_bandits'
+                              ? `Hunt ${contract.requiredAmount} bandit group`
+                              : contract.kind === 'escort_caravan'
+                                ? `Escort caravan carrying ${contract.requiredAmount} ${contract.good}`
+                                : `Defend settlement from ${contract.requiredAmount} hostile groups`}
+                        </p>
+                        <p>Tier: {contract.level}</p>
+                        {contract.meta.exclusive === true && (
+                          <p>
+                            Exclusive: {showExclusivePool(contract.meta.exclusivePool)} ·{' '}
+                            {String(contract.meta.exclusiveTitle ?? 'Special commission')} · Min favor{' '}
+                            {Number(contract.meta.minFavor ?? 0)}
+                          </p>
+                        )}
+                        {minReputation > 0 && (
+                          <p>
+                            Requires rank: {campaignRankTitleForReputation(minReputation)} ({minReputation} rep)
+                          </p>
+                        )}
+                        {typeof contract.meta.campaignChainId === 'string' && (
+                          <p>
+                            Stage {Number(contract.meta.campaignStage)}/{Number(contract.meta.campaignTotalStages)}
+                          </p>
+                        )}
+                        {contract.meta.campaign === true && <p>Royal objective</p>}
+                        <p>
+                          Reward: +{contract.rewardReputation} rep · {Object.entries(contract.rewardGoods)
+                            .map(([good, qty]) => `${qty} ${good}`)
+                            .join(', ') || 'civic favor'}
+                        </p>
+                        <button
+                          onClick={() => onAcceptContract(contract.id)}
+                          disabled={contract.meta.locked === true || reputationLocked}
+                        >
+                          {contract.meta.locked === true
+                            ? 'Locked Stage'
+                            : reputationLocked
+                              ? 'Need Higher Rank'
+                              : 'Accept Contract'}
+                        </button>
+                      </div>
+                    )
+                  })()
                 ))}
               </div>
             ) : (

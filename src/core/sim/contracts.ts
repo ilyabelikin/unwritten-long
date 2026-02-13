@@ -3,6 +3,7 @@ import { shortestPath } from '../pathing'
 import { SeededRng } from '../random'
 import type { Contract, Good, Settlement, World } from '../types'
 import { clamp } from '../utils'
+import { campaignRankTitleForReputation } from './campaignRank'
 import { relationBetween, setRelation } from './diplomacy'
 
 type KingdomExclusivePool = 'harvest' | 'warden' | 'guild'
@@ -194,9 +195,11 @@ const createExclusiveContractForKingdom = (
   contract.rewardReputation += 3 + (favor >= 22 ? 2 : 0)
   contract.rewardBountyReduction += pool === 'warden' ? 4 : 2
   contract.rewardGoods.gold_ore = (contract.rewardGoods.gold_ore ?? 0) + (favor >= 20 ? 2 : 1)
+  const baseReputation = pool === 'warden' ? 10 : pool === 'harvest' ? 12 : 14
   contract.meta.exclusive = true
   contract.meta.exclusivePool = pool
   contract.meta.minFavor = minFavorForExclusive(favor)
+  contract.meta.minReputation = clamp(baseReputation + contract.level * 3 + (favor >= 20 ? 2 : 0), 8, 60)
   contract.meta.exclusiveTitle = EXCLUSIVE_TITLE_BY_POOL[pool]
   return contract
 }
@@ -378,6 +381,7 @@ const spawnCampaignChain = (
     contract.meta.campaignTotalStages = 3
     contract.meta.campaignBranch = branch
     contract.meta.locked = stage > 0
+    contract.meta.minReputation = clamp(10 + baseLevel * 3 + stage * 6, 10, 70)
     contract.rewardReputation += 2 + stage
     contract.rewardBountyReduction += 2 + stage
     contract.rewardGoods.gold_ore = (contract.rewardGoods.gold_ore ?? 0) + (stage >= 1 ? 1 : 0)
@@ -585,11 +589,18 @@ export const acceptContractForPlayer = (world: World, contractId: string): strin
   const rng = new SeededRng(world.seed + world.turn * 29 + contractId.length)
   if (!contract) return ['Contract not found.']
   if (contract.status !== 'available') return ['That contract is no longer available.']
+  if (contract.meta.locked) return ['This contract stage is locked until previous campaign objectives are done.']
   const minFavor = Number(contract.meta.minFavor ?? 0)
   if (minFavor > 0 && favorForKingdom(world, contract.issuerKingdomId) < minFavor) {
     return [`This contract requires kingdom favor ${minFavor}.`]
   }
-  if (contract.meta.locked) return ['This contract stage is locked until previous campaign objectives are done.']
+  const minReputation = Number(contract.meta.minReputation ?? 0)
+  if (minReputation > 0 && player.reputation < minReputation) {
+    const neededTitle = campaignRankTitleForReputation(minReputation)
+    return [
+      `This contract requires reputation ${minReputation} (${neededTitle}). Your reputation is ${player.reputation}.`,
+    ]
+  }
   if (activeContractForPlayer(world)) return ['You already have an active contract.']
   if (player.ap < 1) return ['Not enough AP to accept a contract.']
   const settlement = world.settlements[contract.settlementId]

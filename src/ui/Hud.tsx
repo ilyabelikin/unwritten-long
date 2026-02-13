@@ -33,6 +33,14 @@ const showGoods = (goods: Record<Good, number>): string =>
     .map(([good, amount]) => `${good}: ${Math.round(amount * 10) / 10}`)
     .join(' · ')
 
+const showInventory = (inventory: Partial<Record<Good, number>>): string =>
+  (Object.entries(inventory) as [Good, number][])
+    .filter(([, amount]) => (amount ?? 0) > 0)
+    .sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))
+    .slice(0, 8)
+    .map(([good, amount]) => `${good} ${Math.round((amount ?? 0) * 10) / 10}`)
+    .join(' · ')
+
 export const Hud = ({
   world,
   actionFeed,
@@ -128,6 +136,17 @@ export const Hud = ({
           </>
         ) : (
           <p>Move into a settlement to donate supplies or sponsor talks.</p>
+        )}
+      </section>
+
+      <section className="panel">
+        <h2>Inventory</h2>
+        <p>{showInventory(player.inventory) || 'Inventory is empty.'}</p>
+        {activeContract?.kind === 'deliver_food' && (
+          <p>
+            Contract target: deliver {activeContract.requiredAmount} {activeContract.good}. Progress{' '}
+            {activeContract.progress}/{activeContract.requiredAmount}
+          </p>
         )}
       </section>
 

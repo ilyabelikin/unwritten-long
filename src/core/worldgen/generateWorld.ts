@@ -550,13 +550,28 @@ export const generateWorld = (seed = Date.now() % 100000): World => {
   const roadTiles = landTiles.filter((id) => tiles[id].road)
 
   for (const tileId of deepForestTiles) {
-    if (rng.chance(0.045)) characters[createCharacterId()] = createCreature(createCharacterId(), 'rabbit', tileId, rng)
-    if (rng.chance(0.03)) characters[createCharacterId()] = createCreature(createCharacterId(), 'deer', tileId, rng)
-    if (rng.chance(0.015)) characters[createCharacterId()] = createCreature(createCharacterId(), 'wolf', tileId, rng)
-    if (rng.chance(0.009)) characters[createCharacterId()] = createCreature(createCharacterId(), 'bear', tileId, rng)
+    if (rng.chance(0.045)) {
+      const id = createCharacterId()
+      characters[id] = createCreature(id, 'rabbit', tileId, rng)
+    }
+    if (rng.chance(0.03)) {
+      const id = createCharacterId()
+      characters[id] = createCreature(id, 'deer', tileId, rng)
+    }
+    if (rng.chance(0.015)) {
+      const id = createCharacterId()
+      characters[id] = createCreature(id, 'wolf', tileId, rng)
+    }
+    if (rng.chance(0.009)) {
+      const id = createCharacterId()
+      characters[id] = createCreature(id, 'bear', tileId, rng)
+    }
   }
   for (const tileId of mountainTiles) {
-    if (rng.chance(0.006)) characters[createCharacterId()] = createCreature(createCharacterId(), rng.chance(0.75) ? 'ogre' : 'wyrm', tileId, rng)
+    if (rng.chance(0.006)) {
+      const id = createCharacterId()
+      characters[id] = createCreature(id, rng.chance(0.75) ? 'ogre' : 'wyrm', tileId, rng)
+    }
   }
   for (const tileId of roadTiles) {
     if (rng.chance(0.005)) {

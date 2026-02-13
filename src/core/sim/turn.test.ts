@@ -367,6 +367,34 @@ describe('turn simulation', () => {
     expect(militia.alive).toBe(false)
   })
 
+  it('repatriating refugees settle with returning-home recovery bonus', () => {
+    const world = generateWorld(9102)
+    const target = Object.values(world.settlements)[0]
+    const template = world.characters[world.playerId]
+    world.characters['returnee-test'] = {
+      ...template,
+      id: 'returnee-test',
+      name: 'Returnee',
+      role: 'migrant',
+      location: target.tiles[0],
+      homeSettlementId: undefined,
+      targetTileId: undefined,
+      alive: true,
+      inventory: {},
+      meta: {
+        targetSettlementId: target.id,
+        returningHome: true,
+        refugeeFromConflict: Object.keys(world.kingdomRelations)[0],
+      },
+    }
+    const messages = advanceWorldTurn(world, 12)
+    const returnee = world.characters['returnee-test']
+    expect(returnee.role).toBe('villager')
+    expect(returnee.homeSettlementId).toBe(target.id)
+    expect(target.populationIds).toContain('returnee-test')
+    expect(messages.some((line) => line.includes('returned home'))).toBe(true)
+  })
+
   it('coordinating escort marks caravan contact for active contract', () => {
     const world = generateWorld(9098)
     const player = world.characters[world.playerId]

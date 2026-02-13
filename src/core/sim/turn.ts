@@ -256,11 +256,18 @@ const processNpcIntent = (world: World, actor: Character, rng: SeededRng, messag
       }
       if (actor.location === target) {
         const settle = world.settlements[targetSettlementId!]
+        const returningHome = actor.meta.returningHome === true
         actor.role = 'villager'
         actor.homeSettlementId = settle.id
         settle.populationIds.push(actor.id)
         actor.meta = {}
-        messages.push(`${actor.name} joined ${settle.name}.`)
+        if (returningHome) {
+          settle.meta.prosperity = clamp(settle.meta.prosperity + 1.5, 0, 100)
+          settle.meta.foodStress = clamp(settle.meta.foodStress - 1.2, 0, 100)
+          messages.push(`${actor.name} returned home to ${settle.name} as border tensions eased.`)
+        } else {
+          messages.push(`${actor.name} joined ${settle.name}.`)
+        }
       }
       return
     }

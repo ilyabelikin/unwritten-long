@@ -6,6 +6,7 @@ import {
   simulateCourtPolitics,
   tryCorruptionCrackdown,
   tryDeclareManhunt,
+  tryRepatriatePeaceRefugee,
   tryIssueAmnestyDecree,
   trySpawnWarRefugee,
 } from './events'
@@ -48,6 +49,56 @@ describe('world events under conflict', () => {
       (character) => character.role === 'migrant' && character.meta.refugeeFromConflict === [left, right].sort().join('|'),
     )
     expect(refugeeSpawned).toBe(false)
+  })
+
+  it('peace dividends can reroute refugees back toward home kingdoms', () => {
+    const world = generateWorld(9321)
+    const [left, right] = Object.keys(world.kingdoms)
+    const pair = [left, right].sort().join('|')
+    world.turn = 24
+    setRelation(world, left, right, 14)
+    world.kingdoms[left].policy.peaceDividendUntilTurn = world.turn + 8
+    world.kingdoms[right].policy.peaceDividendUntilTurn = world.turn + 8
+    world.kingdoms[left].policy.peaceDividendPartnerKingdomId = right
+    world.kingdoms[right].policy.peaceDividendPartnerKingdomId = left
+    world.kingdoms[left].policy.peaceDividendIntensity = 28
+    world.kingdoms[right].policy.peaceDividendIntensity = 28
+
+    const safeSettlement = Object.values(world.settlements).find(
+      (settlement) => settlement.kingdomId !== left && settlement.kingdomId !== right,
+    )
+    const homeSettlement = Object.values(world.settlements).find(
+      (settlement) => settlement.kingdomId === left || settlement.kingdomId === right,
+    )
+    expect(safeSettlement).toBeDefined()
+    expect(homeSettlement).toBeDefined()
+    if (!safeSettlement || !homeSettlement) return
+
+    world.characters['return-refugee'] = {
+      ...world.characters[world.playerId],
+      id: 'return-refugee',
+      name: 'Return Refugee',
+      role: 'migrant',
+      location: safeSettlement.tiles[0],
+      homeSettlementId: undefined,
+      targetTileId: undefined,
+      alive: true,
+      inventory: {},
+      meta: {
+        refugeeFromConflict: pair,
+        targetSettlementId: safeSettlement.id,
+        pathProgress: 0,
+      },
+    }
+
+    const message = tryRepatriatePeaceRefugee(world, new SeededRng(11), pair)
+    expect(message).toContain('return home')
+    const retargeted = world.characters['return-refugee'].meta.targetSettlementId as string
+    expect(retargeted).toBeDefined()
+    expect(world.settlements[retargeted].kingdomId === left || world.settlements[retargeted].kingdomId === right).toBe(
+      true,
+    )
+    expect(world.characters['return-refugee'].meta.returningHome).toBe(true)
   })
 
   it('can declare local manhunts against high-bounty players', () => {

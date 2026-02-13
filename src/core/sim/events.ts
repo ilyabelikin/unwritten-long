@@ -104,6 +104,38 @@ export const trySpawnWarRefugee = (world: World, rng: SeededRng, pair: string): 
   return `War refugees fled the ${world.kingdoms[left]?.name ?? left}/${world.kingdoms[right]?.name ?? right} frontier.`
 }
 
+export const tryRepatriatePeaceRefugee = (
+  world: World,
+  rng: SeededRng,
+  pair: string,
+): string | undefined => {
+  const [left, right] = pair.split('|')
+  const peaceIntensity = peaceDividendIntensityForPair(world, left, right)
+  if (peaceIntensity < 18) return undefined
+  if (!world.kingdoms[left] || !world.kingdoms[right]) return undefined
+
+  const refugees = Object.values(world.characters).filter(
+    (character) =>
+      character.alive &&
+      character.role === 'migrant' &&
+      character.meta.refugeeFromConflict === pair &&
+      character.meta.returningHome !== true,
+  )
+  if (refugees.length === 0) return undefined
+
+  const homeSettlements = Object.values(world.settlements)
+    .filter((settlement) => settlement.kingdomId === left || settlement.kingdomId === right)
+    .sort((a, b) => b.meta.prosperity - a.meta.prosperity)
+  const destination = homeSettlements[0]
+  if (!destination) return undefined
+
+  const refugee = refugees[rng.int(0, refugees.length - 1)]
+  refugee.meta.targetSettlementId = destination.id
+  refugee.meta.returningHome = true
+  refugee.meta.pathProgress = 0
+  return `${refugee.name} set out to return home as the ${world.kingdoms[left].name}/${world.kingdoms[right].name} corridor stabilizes.`
+}
+
 const currentSettlementForPlayer = (world: World) => {
   const player = world.characters[world.playerId]
   if (!player?.alive) return undefined
@@ -894,6 +926,18 @@ export const spawnWorldEvents = (world: World, rng: SeededRng): string[] => {
     const pair = warPairs[rng.int(0, warPairs.length - 1)]
     const refugeeMessage = trySpawnWarRefugee(world, rng, pair)
     if (refugeeMessage) messages.push(refugeeMessage)
+  }
+
+  if (world.turn % 8 === 0 && rng.chance(0.45)) {
+    const dividendPairs = Object.keys(world.kingdomRelations).filter((pair) => {
+      const [left, right] = pair.split('|')
+      return peaceDividendIntensityForPair(world, left, right) >= 18
+    })
+    if (dividendPairs.length > 0) {
+      const pair = dividendPairs[rng.int(0, dividendPairs.length - 1)]
+      const returnMessage = tryRepatriatePeaceRefugee(world, rng, pair)
+      if (returnMessage) messages.push(returnMessage)
+    }
   }
 
   return messages

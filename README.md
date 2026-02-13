@@ -106,6 +106,7 @@ Then open the printed localhost URL.
 - Completing diplomatic summit chains can end wars once relations recover past ceasefire thresholds.
 - Failing active peace-opposition responses can drag relations back down and destabilize summit momentum.
 - Active peace dividends improve caravan viability, strengthen prosperity drift, reduce food stress pressure, and dampen raid/refugee spikes near recovering borders.
+- Active peace dividends can also trigger refugee repatriation routes back into former conflict kingdoms.
 - HP ≤ 0 resolves to death/survival rules; city visit restores HP to full.
 - Bears mostly hibernate in winter, with rare aggressive wake-ups.
 - Seasonal crop cycle and food stress drive migration/growth/decline pressure in settlements.

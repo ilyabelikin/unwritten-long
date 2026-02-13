@@ -50,6 +50,8 @@ const ensureKingdomPoliciesAndConflicts = (world: World): void => {
         pardonGoldFactor: 1,
         courtStability: 55,
         nobleInfluence: 45,
+        courtFaction: 'merchant_bloc',
+        factionTension: 35,
         activeEdict: 'none',
         edictExpiresTurn: -1,
       }
@@ -77,6 +79,10 @@ const ensureKingdomPoliciesAndConflicts = (world: World): void => {
     kingdom.policy.nobleInfluence = Number.isFinite(kingdom.policy.nobleInfluence)
       ? kingdom.policy.nobleInfluence
       : 45
+    kingdom.policy.courtFaction = kingdom.policy.courtFaction ?? 'merchant_bloc'
+    kingdom.policy.factionTension = Number.isFinite(kingdom.policy.factionTension)
+      ? kingdom.policy.factionTension
+      : 35
     kingdom.policy.activeEdict = kingdom.policy.activeEdict ?? 'none'
     kingdom.policy.edictExpiresTurn = Number.isFinite(kingdom.policy.edictExpiresTurn)
       ? kingdom.policy.edictExpiresTurn

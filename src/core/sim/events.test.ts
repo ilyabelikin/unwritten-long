@@ -112,5 +112,57 @@ describe('world events under conflict', () => {
     expect(policy.edictExpiresTurn).toBe(-1)
     expect(messages.some((line) => line.includes('edict expired'))).toBe(true)
   })
+
+  it('court faction can flip toward war hawks under sustained war pressure', () => {
+    const world = generateWorld(9316)
+    const kingdomId = Object.keys(world.kingdoms)[0]
+    const policy = world.kingdoms[kingdomId].policy
+    policy.courtFaction = 'merchant_bloc'
+    policy.factionTension = 70
+    policy.courtStability = 28
+    policy.tradeStance = 'protectionist'
+    policy.guardHostilityBounty = 14
+    for (const settlement of Object.values(world.settlements)) {
+      if (settlement.kingdomId === kingdomId) {
+        settlement.meta.prosperity = 16
+      }
+    }
+    const rivals = Object.keys(world.kingdoms).filter((id) => id !== kingdomId)
+    expect(rivals.length).toBeGreaterThan(0)
+    if (rivals.length === 0) return
+    for (const rival of rivals.slice(0, 2)) {
+      setWarState(world, kingdomId, rival, true)
+      setRelation(world, kingdomId, rival, -80)
+    }
+    world.turn = 9
+
+    const messages = simulateCourtPolitics(world, new SeededRng(6))
+    expect(policy.courtFaction).toBe('war_hawks')
+    expect(messages.some((line) => line.includes('shifted influence'))).toBe(true)
+  })
+
+  it('merchant bloc can push trade fair edicts in peacetime prosperity', () => {
+    const world = generateWorld(9317)
+    const kingdomId = Object.keys(world.kingdoms)[0]
+    const policy = world.kingdoms[kingdomId].policy
+    policy.courtFaction = 'merchant_bloc'
+    policy.factionTension = 12
+    policy.activeEdict = 'none'
+    policy.courtStability = 72
+    for (const settlement of Object.values(world.settlements)) {
+      if (settlement.kingdomId === kingdomId) {
+        settlement.meta.prosperity = 78
+        settlement.meta.foodStress = 4
+      }
+    }
+    for (const key of Object.keys(world.kingdomConflicts)) {
+      world.kingdomConflicts[key] = false
+    }
+    world.turn = 9
+
+    const messages = simulateCourtPolitics(world, new SeededRng(7))
+    expect(policy.activeEdict).toBe('trade_fair')
+    expect(messages.some((line) => line.includes('merchant bloc'))).toBe(true)
+  })
 })
 

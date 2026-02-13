@@ -54,6 +54,8 @@ describe('diplomacy simulation', () => {
       expect(kingdom.policy.pardonGoldFactor).toBeGreaterThan(0)
       expect(kingdom.policy.courtStability).toBeGreaterThanOrEqual(0)
       expect(kingdom.policy.nobleInfluence).toBeGreaterThanOrEqual(0)
+      expect(['merchant_bloc', 'war_hawks', 'reformers']).toContain(kingdom.policy.courtFaction)
+      expect(kingdom.policy.factionTension).toBeGreaterThanOrEqual(0)
       expect(['none', 'martial_law', 'tax_relief', 'trade_fair']).toContain(kingdom.policy.activeEdict)
     }
   })

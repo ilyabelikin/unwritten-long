@@ -53,6 +53,8 @@ describe('game persistence', () => {
     expect(loadedKingdom?.policy.pardonGoldFactor).toBe(1)
     expect(loadedKingdom?.policy.courtStability).toBe(55)
     expect(loadedKingdom?.policy.nobleInfluence).toBe(45)
+    expect(loadedKingdom?.policy.courtFaction).toBe('merchant_bloc')
+    expect(loadedKingdom?.policy.factionTension).toBe(35)
     expect(loadedKingdom?.policy.activeEdict).toBe('none')
     expect(loadedKingdom?.policy.edictExpiresTurn).toBe(-1)
   })

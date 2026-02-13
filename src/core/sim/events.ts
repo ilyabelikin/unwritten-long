@@ -250,6 +250,12 @@ const averageProsperityForKingdom = (world: World, kingdomId: string): number =>
   return settlements.reduce((sum, settlement) => sum + settlement.meta.prosperity, 0) / settlements.length
 }
 
+const averageFoodStressForKingdom = (world: World, kingdomId: string): number => {
+  const settlements = Object.values(world.settlements).filter((settlement) => settlement.kingdomId === kingdomId)
+  if (settlements.length === 0) return 0
+  return settlements.reduce((sum, settlement) => sum + settlement.meta.foodStress, 0) / settlements.length
+}
+
 const warCountForKingdom = (world: World, kingdomId: string): number =>
   Object.keys(world.kingdomConflicts).filter((pair) => {
     if (!world.kingdomConflicts[pair]) return false
@@ -261,6 +267,64 @@ const isEdictExpired = (world: World, kingdomId: string): boolean => {
   const policy = world.kingdoms[kingdomId]?.policy
   if (!policy || policy.activeEdict === 'none') return false
   return policy.edictExpiresTurn >= 0 && world.turn > policy.edictExpiresTurn
+}
+
+type CourtFaction = World['kingdoms'][string]['policy']['courtFaction']
+
+const factionScores = (
+  world: World,
+  kingdomId: string,
+  prosperity: number,
+  avgFoodStress: number,
+  wars: number,
+) => {
+  const policy = world.kingdoms[kingdomId].policy
+  const merchantScore =
+    36 +
+    prosperity * 0.55 +
+    (policy.tradeStance === 'open' ? 8 : 0) +
+    (wars === 0 ? 8 : -wars * 4) +
+    (policy.taxRate <= 0.12 ? 4 : -2)
+  const warHawkScore =
+    28 +
+    wars * 18 +
+    (policy.tradeStance === 'protectionist' ? 7 : 0) +
+    (policy.guardHostilityBounty <= 18 ? 6 : 0) +
+    (100 - policy.courtStability) * 0.18
+  const reformerScore =
+    30 +
+    avgFoodStress * 0.65 +
+    (prosperity < 45 ? 7 : 0) +
+    (policy.pardonGoldFactor <= 1 ? 5 : 0) +
+    (policy.taxRate >= 0.15 ? 5 : 0)
+  return {
+    merchant_bloc: merchantScore,
+    war_hawks: warHawkScore,
+    reformers: reformerScore,
+  }
+}
+
+const dominantFaction = (
+  scores: Record<CourtFaction, number>,
+): { faction: CourtFaction; score: number; second: number } => {
+  const entries = Object.entries(scores) as [CourtFaction, number][]
+  const sorted = entries.sort((a, b) => b[1] - a[1])
+  return {
+    faction: sorted[0][0],
+    score: sorted[0][1],
+    second: sorted[1]?.[1] ?? sorted[0][1],
+  }
+}
+
+const setCourtEdict = (
+  world: World,
+  kingdomId: string,
+  edict: World['kingdoms'][string]['policy']['activeEdict'],
+  duration: number,
+): void => {
+  const policy = world.kingdoms[kingdomId].policy
+  policy.activeEdict = edict
+  policy.edictExpiresTurn = world.turn + duration
 }
 
 export const simulateCourtPolitics = (world: World, rng: SeededRng): string[] => {
@@ -283,6 +347,7 @@ export const simulateCourtPolitics = (world: World, rng: SeededRng): string[] =>
     const kingdom = world.kingdoms[kingdomId]
     const policy = kingdom.policy
     const prosperity = averageProsperityForKingdom(world, kingdomId)
+    const avgFoodStress = averageFoodStressForKingdom(world, kingdomId)
     const wars = warCountForKingdom(world, kingdomId)
 
     policy.courtStability = clamp(
@@ -296,9 +361,27 @@ export const simulateCourtPolitics = (world: World, rng: SeededRng): string[] =>
       100,
     )
 
+    const scores = factionScores(world, kingdomId, prosperity, avgFoodStress, wars)
+    const factionResult = dominantFaction(scores)
+    const scoreGap = factionResult.score - factionResult.second
+    const currentFactionScore = scores[policy.courtFaction]
+    if (factionResult.faction !== policy.courtFaction) {
+      policy.factionTension = clamp(
+        Math.round(policy.factionTension + Math.max(1, (factionResult.score - currentFactionScore) * 0.45)),
+        0,
+        100,
+      )
+      if (policy.factionTension >= 60 || (scoreGap >= 14 && rng.chance(0.55))) {
+        policy.courtFaction = factionResult.faction
+        policy.factionTension = clamp(policy.factionTension - 18, 0, 100)
+        messages.push(`${kingdom.name} court shifted influence to the ${policy.courtFaction.replace('_', ' ')} faction.`)
+      }
+    } else {
+      policy.factionTension = clamp(policy.factionTension - 3, 0, 100)
+    }
+
     if (policy.courtStability <= 30 && policy.nobleInfluence >= 58 && rng.chance(0.55)) {
-      policy.activeEdict = 'martial_law'
-      policy.edictExpiresTurn = world.turn + 15
+      setCourtEdict(world, kingdomId, 'martial_law', 15)
       policy.tradeStance = 'protectionist'
       policy.guardHostilityReputation = clamp(policy.guardHostilityReputation + 2, -30, -6)
       policy.guardHostilityBounty = clamp(policy.guardHostilityBounty - 2, 10, 34)
@@ -310,17 +393,52 @@ export const simulateCourtPolitics = (world: World, rng: SeededRng): string[] =>
       continue
     }
 
+    const faction = policy.courtFaction
+    if (policy.activeEdict === 'none' && faction === 'war_hawks' && (wars >= 2 || policy.courtStability < 26)) {
+      setCourtEdict(world, kingdomId, 'martial_law', 14)
+      policy.tradeStance = 'protectionist'
+      messages.push(`${kingdom.name}'s war hawks forced an emergency martial law decree.`)
+      continue
+    }
+
+    if (
+      policy.activeEdict === 'none' &&
+      faction === 'reformers' &&
+      (avgFoodStress > 24 || prosperity < 42 || policy.courtStability < 35)
+    ) {
+      setCourtEdict(world, kingdomId, 'tax_relief', 12)
+      policy.taxRate = clamp(policy.taxRate - 0.01, 0.05, 0.28)
+      policy.pardonGoldFactor = clamp(policy.pardonGoldFactor - 0.05, 0.6, 1.8)
+      messages.push(`${kingdom.name}'s reformers enacted a tax relief edict to calm unrest.`)
+      continue
+    }
+
+    if (
+      policy.activeEdict === 'none' &&
+      faction === 'merchant_bloc' &&
+      prosperity > 58 &&
+      wars === 0 &&
+      (scoreGap >= 8 || rng.chance(0.5))
+    ) {
+      setCourtEdict(world, kingdomId, 'trade_fair', 12)
+      policy.tradeStance = 'open'
+      const partnerId = kingdomIds
+        .filter((id) => id !== kingdomId)
+        .sort((left, right) => relationBetween(world, kingdomId, right) - relationBetween(world, kingdomId, left))[0]
+      if (partnerId) setRelation(world, kingdomId, partnerId, relationBetween(world, kingdomId, partnerId) + 5)
+      messages.push(`${kingdom.name}'s merchant bloc announced a grand trade fair edict.`)
+      continue
+    }
+
     if (policy.activeEdict === 'none' && prosperity < 38 && rng.chance(0.34)) {
-      policy.activeEdict = 'tax_relief'
-      policy.edictExpiresTurn = world.turn + 12
+      setCourtEdict(world, kingdomId, 'tax_relief', 12)
       policy.taxRate = clamp(policy.taxRate - 0.01, 0.05, 0.28)
       messages.push(`${kingdom.name} enacted a court-backed tax relief edict to calm unrest.`)
       continue
     }
 
     if (policy.activeEdict === 'none' && prosperity > 62 && wars === 0 && rng.chance(0.3)) {
-      policy.activeEdict = 'trade_fair'
-      policy.edictExpiresTurn = world.turn + 12
+      setCourtEdict(world, kingdomId, 'trade_fair', 12)
       policy.tradeStance = 'open'
       const partnerId = kingdomIds
         .filter((id) => id !== kingdomId)

@@ -223,6 +223,11 @@ const assignKingdoms = (
         pardonGoldFactor: [1, 0.82, 1.35][index],
         courtStability: [56, 62, 48][index],
         nobleInfluence: [46, 38, 58][index],
+        courtFaction: ['merchant_bloc', 'reformers', 'war_hawks'][index] as
+          | 'merchant_bloc'
+          | 'war_hawks'
+          | 'reformers',
+        factionTension: [34, 29, 52][index],
         activeEdict: 'none',
         edictExpiresTurn: -1,
       },

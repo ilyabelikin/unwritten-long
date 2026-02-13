@@ -143,6 +143,8 @@ export interface Kingdom {
     pardonGoldFactor: number
     courtStability: number
     nobleInfluence: number
+    courtFaction: 'merchant_bloc' | 'war_hawks' | 'reformers'
+    factionTension: number
     activeEdict: 'none' | 'martial_law' | 'tax_relief' | 'trade_fair'
     edictExpiresTurn: number
   }

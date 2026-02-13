@@ -2,7 +2,7 @@ import { estimateGoodPrice } from '../core/sim/economy'
 import { campaignRankInfo, campaignRankTitleForReputation } from '../core/sim/campaignRank'
 import { SPECIES_LABEL } from '../core/data/content'
 import { relationBetween } from '../core/sim/diplomacy'
-import { edictLabel } from '../core/sim/edicts'
+import { courtFactionLabel, edictLabel } from '../core/sim/edicts'
 import { favorRankTitle } from '../core/sim/favor'
 import type { Contract } from '../core/types'
 import type { Good, World } from '../core/types'
@@ -423,6 +423,8 @@ export const Hud = ({
               <span>Pardon factor: {kingdom.policy.pardonGoldFactor.toFixed(2)}x</span>
               <span>Court stability: {kingdom.policy.courtStability}</span>
               <span>Noble influence: {kingdom.policy.nobleInfluence}</span>
+              <span>Court faction: {courtFactionLabel(kingdom.policy.courtFaction)}</span>
+              <span>Faction tension: {kingdom.policy.factionTension}</span>
               <span>
                 Edict: {edictLabel(kingdom.policy.activeEdict)}
                 {kingdom.policy.activeEdict !== 'none' && kingdom.policy.edictExpiresTurn >= world.turn

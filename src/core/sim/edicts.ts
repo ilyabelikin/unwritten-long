@@ -56,3 +56,9 @@ export const edictLabel = (edict: Policy['activeEdict']): string => {
   return 'None'
 }
 
+export const courtFactionLabel = (faction: Policy['courtFaction']): string => {
+  if (faction === 'merchant_bloc') return 'Merchant Bloc'
+  if (faction === 'war_hawks') return 'War Hawks'
+  return 'Reformers'
+}
+

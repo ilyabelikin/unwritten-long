@@ -173,6 +173,142 @@ const createContractForSettlement = (
   return createBanditHuntContract(world, settlement, rng, level)
 }
 
+const hasOpenCampaignChain = (world: World, kingdomId: string): boolean =>
+  Object.values(world.contracts).some(
+    (contract) =>
+      contract.issuerKingdomId === kingdomId &&
+      contract.status !== 'completed' &&
+      contract.status !== 'expired' &&
+      Boolean(contract.meta.campaignChainId),
+  )
+
+const normalizeKind = (kind: Contract['kind']): Contract['kind'] =>
+  kind === 'deliver_food' ||
+  kind === 'hunt_bandits' ||
+  kind === 'escort_caravan' ||
+  kind === 'defend_settlement'
+    ? kind
+    : 'deliver_food'
+
+const createContractByKind = (
+  world: World,
+  settlement: Settlement,
+  kind: Contract['kind'],
+  level: number,
+  rng: SeededRng,
+): Contract => {
+  const normalized = normalizeKind(kind)
+  if (normalized === 'deliver_food') return createFoodDeliveryContract(world, settlement, rng, level)
+  if (normalized === 'hunt_bandits') return createBanditHuntContract(world, settlement, rng, level)
+  if (normalized === 'escort_caravan') return createEscortContract(world, settlement, rng, level)
+  return createDefendContract(world, settlement, rng, level)
+}
+
+const settlementsForKingdom = (world: World, kingdomId: string): Settlement[] =>
+  Object.values(world.settlements).filter((settlement) => settlement.kingdomId === kingdomId)
+
+const campaignBranchForKingdom = (world: World, kingdomId: string): 'relief' | 'frontier' | 'prosperity' => {
+  const hasWar = Object.keys(world.kingdomConflicts).some((pair) => {
+    if (!world.kingdomConflicts[pair]) return false
+    const [left, right] = pair.split('|')
+    return left === kingdomId || right === kingdomId
+  })
+  if (hasWar) return 'frontier'
+  const settlements = settlementsForKingdom(world, kingdomId)
+  const avgFoodStress =
+    settlements.length > 0
+      ? settlements.reduce((sum, settlement) => sum + settlement.meta.foodStress, 0) / settlements.length
+      : 0
+  return avgFoodStress > 24 ? 'relief' : 'prosperity'
+}
+
+const buildCampaignChainKinds = (
+  branch: 'relief' | 'frontier' | 'prosperity',
+): [Contract['kind'], Contract['kind'], Contract['kind']] => {
+  if (branch === 'frontier') return ['defend_settlement', 'hunt_bandits', 'escort_caravan']
+  if (branch === 'relief') return ['deliver_food', 'escort_caravan', 'defend_settlement']
+  return ['escort_caravan', 'deliver_food', 'hunt_bandits']
+}
+
+const applyCampaignChainOutcome = (
+  world: World,
+  kingdomId: string,
+  branch: 'relief' | 'frontier' | 'prosperity',
+  messages: string[],
+): void => {
+  const settlements = settlementsForKingdom(world, kingdomId)
+  if (branch === 'relief') {
+    for (const settlement of settlements) {
+      settlement.meta.foodStress = clamp(settlement.meta.foodStress - 8, 0, 100)
+      settlement.meta.prosperity = clamp(settlement.meta.prosperity + 4, 0, 100)
+    }
+    messages.push(`${world.kingdoms[kingdomId].name} completed a relief campaign and eased shortages.`)
+    return
+  }
+  if (branch === 'frontier') {
+    for (const settlement of settlements) {
+      settlement.meta.siegePressure = clamp(settlement.meta.siegePressure - 10, 0, 100)
+      settlement.meta.prosperity = clamp(settlement.meta.prosperity + 3, 0, 100)
+    }
+    messages.push(`${world.kingdoms[kingdomId].name} completed a frontier campaign and secured its borders.`)
+    return
+  }
+  for (const settlement of settlements) {
+    settlement.treasury += 18
+    settlement.meta.prosperity = clamp(settlement.meta.prosperity + 5, 0, 100)
+  }
+  messages.push(`${world.kingdoms[kingdomId].name} completed a prosperity campaign and boosted commerce.`)
+}
+
+const spawnCampaignChain = (
+  world: World,
+  kingdomId: string,
+  rng: SeededRng,
+): { created: boolean; message?: string } => {
+  if (hasOpenCampaignChain(world, kingdomId)) return { created: false }
+  const settlements = settlementsForKingdom(world, kingdomId)
+  if (settlements.length < 2) return { created: false }
+
+  const capital = capitalSettlementForKingdom(world, kingdomId)
+  if (!capital) return { created: false }
+
+  const branch = campaignBranchForKingdom(world, kingdomId)
+  const kinds = buildCampaignChainKinds(branch)
+  const sortedByNeed = [...settlements].sort((a, b) => b.meta.foodStress - a.meta.foodStress)
+  const sortedByThreat = [...settlements].sort((a, b) => b.meta.siegePressure - a.meta.siegePressure)
+  const stageSettlements: Settlement[] = [
+    branch === 'relief' ? sortedByNeed[0] : branch === 'frontier' ? sortedByThreat[0] : capital,
+    branch === 'relief' ? capital : branch === 'frontier' ? capital : sortedByNeed[0],
+    branch === 'frontier' ? sortedByNeed[0] : sortedByThreat[0] ?? capital,
+  ]
+
+  const chainId = `campaign-${kingdomId}-${world.turn}-${rng.int(100, 999)}`
+  const baseLevel = clamp(3 + Math.floor((world.campaignProgress[kingdomId] ?? 0) / 6), 3, 4)
+
+  for (let stage = 0; stage < 3; stage += 1) {
+    const settlement = stageSettlements[stage] ?? capital
+    const contract = createContractByKind(world, settlement, kinds[stage], baseLevel, rng)
+    contract.meta.campaign = true
+    contract.meta.campaignChainId = chainId
+    contract.meta.campaignStage = stage + 1
+    contract.meta.campaignTotalStages = 3
+    contract.meta.campaignBranch = branch
+    contract.meta.locked = stage > 0
+    contract.rewardReputation += 2 + stage
+    contract.rewardBountyReduction += 2 + stage
+    contract.rewardGoods.gold_ore = (contract.rewardGoods.gold_ore ?? 0) + (stage >= 1 ? 1 : 0)
+    if (stage > 0) {
+      contract.status = 'available'
+    }
+    world.contracts[contract.id] = contract
+  }
+
+  return {
+    created: true,
+    message: `${world.kingdoms[kingdomId].name} initiated a royal ${branch} campaign chain.`,
+  }
+}
+
 export const seedInitialContracts = (world: World, rng: SeededRng): void => {
   for (const settlement of Object.values(world.settlements)) {
     if (settlement.tier === 'hamlet') continue
@@ -205,26 +341,10 @@ export const simulateContractBoardTurn = (world: World, rng: SeededRng): string[
     for (const kingdomId of Object.keys(world.kingdoms)) {
       const progress = world.campaignProgress[kingdomId] ?? 0
       if (progress < 4) continue
-      const capital = capitalSettlementForKingdom(world, kingdomId)
-      if (!capital) continue
-      const existingCampaign = Object.values(world.contracts).some(
-        (contract) =>
-          contract.issuerKingdomId === kingdomId &&
-          contract.status !== 'completed' &&
-          contract.status !== 'expired' &&
-          Boolean(contract.meta.campaign),
-      )
-      if (existingCampaign) continue
-
-      const contract = rng.chance(0.5)
-        ? createDefendContract(world, capital, rng, 4)
-        : createEscortContract(world, capital, rng, 4)
-      contract.meta.campaign = true
-      contract.rewardReputation += 5
-      contract.rewardBountyReduction += 5
-      contract.rewardGoods.gold_ore = (contract.rewardGoods.gold_ore ?? 0) + 1
-      world.contracts[contract.id] = contract
-      messages.push(`${capital.name} issued a high-priority royal campaign contract.`)
+      const chainResult = spawnCampaignChain(world, kingdomId, rng)
+      if (chainResult.created && chainResult.message) {
+        messages.push(chainResult.message)
+      }
     }
   }
 
@@ -271,6 +391,43 @@ const rewardPlayerForContract = (world: World, contract: Contract): void => {
       break
     }
   }
+}
+
+const handleCampaignChainProgress = (world: World, contract: Contract): string[] => {
+  const chainId = contract.meta.campaignChainId as string | undefined
+  const stage = Number(contract.meta.campaignStage ?? 0)
+  const total = Number(contract.meta.campaignTotalStages ?? 0)
+  if (!chainId || stage <= 0 || total <= 0) return []
+
+  const next = Object.values(world.contracts).find(
+    (candidate) =>
+      candidate.meta.campaignChainId === chainId &&
+      Number(candidate.meta.campaignStage ?? 0) === stage + 1 &&
+      candidate.status === 'available',
+  )
+  if (next) {
+    next.meta.locked = false
+    return [`Campaign stage ${stage} complete. Stage ${stage + 1} is now unlocked.`]
+  }
+
+  if (stage >= total) {
+    const branch = (contract.meta.campaignBranch as 'relief' | 'frontier' | 'prosperity' | undefined) ?? 'prosperity'
+    const outcomeMessages: string[] = []
+    applyCampaignChainOutcome(world, contract.issuerKingdomId, branch, outcomeMessages)
+    world.campaignProgress[contract.issuerKingdomId] =
+      (world.campaignProgress[contract.issuerKingdomId] ?? 0) + 2
+    const branchMessage =
+      branch === 'relief'
+        ? 'Relief'
+        : branch === 'frontier'
+          ? 'Frontier'
+          : 'Prosperity'
+    return [
+      `Royal ${branchMessage} campaign chain completed for ${world.kingdoms[contract.issuerKingdomId].name}.`,
+      ...outcomeMessages,
+    ]
+  }
+  return []
 }
 
 const spawnEscortCaravan = (world: World, contract: Contract, rng: SeededRng): string | undefined => {
@@ -326,6 +483,7 @@ export const acceptContractForPlayer = (world: World, contractId: string): strin
   const rng = new SeededRng(world.seed + world.turn * 29 + contractId.length)
   if (!contract) return ['Contract not found.']
   if (contract.status !== 'available') return ['That contract is no longer available.']
+  if (contract.meta.locked) return ['This contract stage is locked until previous campaign objectives are done.']
   if (activeContractForPlayer(world)) return ['You already have an active contract.']
   if (player.ap < 1) return ['Not enough AP to accept a contract.']
   const settlement = world.settlements[contract.settlementId]
@@ -371,7 +529,8 @@ export const progressActiveContractForPlayer = (world: World): string[] => {
     if (remaining <= 0) {
       contract.status = 'completed'
       rewardPlayerForContract(world, contract)
-      return [`Contract ${contract.id} was already complete and has now been closed.`]
+      const chainMessages = handleCampaignChainProgress(world, contract)
+      return [`Contract ${contract.id} was already complete and has now been closed.`, ...chainMessages]
     }
     const available = Math.floor(player.inventory[good] ?? 0)
     if (available <= 0) return [`Bring ${good} to complete this contract.`]
@@ -384,7 +543,10 @@ export const progressActiveContractForPlayer = (world: World): string[] => {
       rewardPlayerForContract(world, contract)
       settlement.meta.foodStress = clamp(settlement.meta.foodStress - 10, 0, 100)
       settlement.meta.prosperity = clamp(settlement.meta.prosperity + 6, 0, 100)
-      const messages = [`Contract ${contract.id} completed by delivering ${contract.requiredAmount} ${good}.`]
+      const messages = [
+        `Contract ${contract.id} completed by delivering ${contract.requiredAmount} ${good}.`,
+        ...handleCampaignChainProgress(world, contract),
+      ]
       world.messages = [...messages, ...world.messages].slice(0, 120)
       return messages
     }
@@ -401,7 +563,10 @@ export const progressActiveContractForPlayer = (world: World): string[] => {
     if (contract.progress >= contract.requiredAmount) {
       contract.status = 'completed'
       rewardPlayerForContract(world, contract)
-      const messages = [`Contract ${contract.id} completed. The roads feel safer.`]
+      const messages = [
+        `Contract ${contract.id} completed. The roads feel safer.`,
+        ...handleCampaignChainProgress(world, contract),
+      ]
       world.messages = [...messages, ...world.messages].slice(0, 120)
       return messages
     }
@@ -416,7 +581,10 @@ export const progressActiveContractForPlayer = (world: World): string[] => {
       contract.status = 'completed'
       rewardPlayerForContract(world, contract)
       settlement.meta.prosperity = clamp(settlement.meta.prosperity + 4, 0, 100)
-      const messages = [`Contract ${contract.id} completed. ${settlement.name} defenses held strong.`]
+      const messages = [
+        `Contract ${contract.id} completed. ${settlement.name} defenses held strong.`,
+        ...handleCampaignChainProgress(world, contract),
+      ]
       world.messages = [...messages, ...world.messages].slice(0, 120)
       return messages
     }
@@ -432,7 +600,10 @@ export const progressActiveContractForPlayer = (world: World): string[] => {
       contract.status = 'completed'
       rewardPlayerForContract(world, contract)
       settlement.meta.prosperity = clamp(settlement.meta.prosperity + 5, 0, 100)
-      const messages = [`Contract ${contract.id} completed. Escort caravan reached destination safely.`]
+      const messages = [
+        `Contract ${contract.id} completed. Escort caravan reached destination safely.`,
+        ...handleCampaignChainProgress(world, contract),
+      ]
       world.messages = [...messages, ...world.messages].slice(0, 120)
       return messages
     }

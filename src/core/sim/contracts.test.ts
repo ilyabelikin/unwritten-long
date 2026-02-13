@@ -198,7 +198,11 @@ describe('contracts system', () => {
 
   it('issues royal campaign contracts at high campaign progress', () => {
     const world = generateWorld(9416)
-    const kingdomId = Object.keys(world.kingdoms)[0]
+    const kingdomId = Object.keys(world.kingdoms).find(
+      (id) => Object.values(world.settlements).filter((settlement) => settlement.kingdomId === id).length >= 2,
+    )
+    expect(kingdomId).toBeDefined()
+    if (!kingdomId) return
     world.campaignProgress[kingdomId] = 6
     world.turn = 10
     const messages = simulateContractBoardTurn(world, new SeededRng(16))
@@ -206,7 +210,77 @@ describe('contracts system', () => {
       (contract) => contract.issuerKingdomId === kingdomId && Boolean(contract.meta.campaign),
     )
     expect(royal).toBeDefined()
-    expect(messages.some((line) => line.includes('royal campaign'))).toBe(true)
+    expect(messages.some((line) => line.includes('campaign chain'))).toBe(true)
+  })
+
+  it('creates multi-stage campaign chains with locked follow-up stages', () => {
+    const world = generateWorld(9418)
+    const kingdomId = Object.keys(world.kingdoms).find(
+      (id) => Object.values(world.settlements).filter((settlement) => settlement.kingdomId === id).length >= 2,
+    )
+    expect(kingdomId).toBeDefined()
+    if (!kingdomId) return
+    const otherKingdom = Object.keys(world.kingdoms).find((id) => id !== kingdomId)
+    expect(otherKingdom).toBeDefined()
+    if (!otherKingdom) return
+    world.campaignProgress[kingdomId] = 8
+    world.kingdomConflicts[[kingdomId, otherKingdom].sort().join('|')] = true
+    world.turn = 10
+    simulateContractBoardTurn(world, new SeededRng(17))
+    const chainContracts = Object.values(world.contracts).filter(
+      (contract) => contract.issuerKingdomId === kingdomId && Boolean(contract.meta.campaignChainId),
+    )
+    expect(chainContracts.length).toBeGreaterThanOrEqual(3)
+    const stage1 = chainContracts.find((contract) => Number(contract.meta.campaignStage) === 1)
+    const stage2 = chainContracts.find((contract) => Number(contract.meta.campaignStage) === 2)
+    expect(stage1).toBeDefined()
+    expect(stage2).toBeDefined()
+    expect(stage1?.meta.locked).not.toBe(true)
+    expect(stage2?.meta.locked).toBe(true)
+  })
+
+  it('unlocks next campaign stage after stage completion', () => {
+    const world = generateWorld(9419)
+    const player = world.characters[world.playerId]
+    const kingdomId = Object.keys(world.kingdoms).find(
+      (id) => Object.values(world.settlements).filter((settlement) => settlement.kingdomId === id).length >= 2,
+    )
+    expect(kingdomId).toBeDefined()
+    if (!kingdomId) return
+    const otherKingdom = Object.keys(world.kingdoms).find((id) => id !== kingdomId)
+    expect(otherKingdom).toBeDefined()
+    if (!otherKingdom) return
+    world.campaignProgress[kingdomId] = 8
+    world.kingdomConflicts[[kingdomId, otherKingdom].sort().join('|')] = true
+    world.turn = 10
+    simulateContractBoardTurn(world, new SeededRng(18))
+
+    const stage1 = Object.values(world.contracts).find(
+      (contract) =>
+        contract.issuerKingdomId === kingdomId &&
+        Number(contract.meta.campaignStage) === 1 &&
+        contract.kind === 'defend_settlement',
+    )
+    const stage2 = Object.values(world.contracts).find(
+      (contract) =>
+        contract.issuerKingdomId === kingdomId &&
+        Number(contract.meta.campaignStage) === 2 &&
+        Boolean(contract.meta.campaignChainId),
+    )
+    expect(stage1).toBeDefined()
+    expect(stage2).toBeDefined()
+    if (!stage1 || !stage2) return
+
+    const settlement = world.settlements[stage1.settlementId]
+    player.location = settlement.tiles[0]
+    const lockedAttempt = playerAcceptContract(world, stage2.id)
+    expect(lockedAttempt[0]).toContain('locked')
+
+    playerAcceptContract(world, stage1.id)
+    player.meta.hostilesDefeated = Number(player.meta.hostilesDefeated ?? 0) + stage1.requiredAmount
+    const completion = playerProgressContract(world)
+    expect(completion.some((line) => line.includes('unlocked'))).toBe(true)
+    expect(stage2.meta.locked).not.toBe(true)
   })
 
   it('prefers defense contracts for settlements under siege pressure', () => {

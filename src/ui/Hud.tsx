@@ -173,6 +173,12 @@ export const Hud = ({
                   Active: {activeContract.kind} (T{activeContract.level}) · {activeContract.progress}/
                   {activeContract.requiredAmount}
                 </p>
+                {typeof activeContract.meta.campaignChainId === 'string' && (
+                  <p>
+                    Campaign chain stage {Number(activeContract.meta.campaignStage)}/
+                    {Number(activeContract.meta.campaignTotalStages)}
+                  </p>
+                )}
                 {activeContract.meta.campaign === true && <p>Royal priority contract</p>}
                 {activeContract.kind === 'escort_caravan' && (
                   <p>
@@ -199,13 +205,23 @@ export const Hud = ({
                             : `Defend settlement from ${contract.requiredAmount} hostile groups`}
                     </p>
                     <p>Tier: {contract.level}</p>
+                    {typeof contract.meta.campaignChainId === 'string' && (
+                      <p>
+                        Stage {Number(contract.meta.campaignStage)}/{Number(contract.meta.campaignTotalStages)}
+                      </p>
+                    )}
                     {contract.meta.campaign === true && <p>Royal objective</p>}
                     <p>
                       Reward: +{contract.rewardReputation} rep · {Object.entries(contract.rewardGoods)
                         .map(([good, qty]) => `${qty} ${good}`)
                         .join(', ') || 'civic favor'}
                     </p>
-                    <button onClick={() => onAcceptContract(contract.id)}>Accept Contract</button>
+                    <button
+                      onClick={() => onAcceptContract(contract.id)}
+                      disabled={contract.meta.locked === true}
+                    >
+                      {contract.meta.locked === true ? 'Locked Stage' : 'Accept Contract'}
+                    </button>
                   </div>
                 ))}
               </div>
